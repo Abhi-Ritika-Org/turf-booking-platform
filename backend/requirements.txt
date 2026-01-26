@@ -1,0 +1,16 @@
+fastapi
+flask
+flask_cors
+flask_restful
+flask_jwt_extended
+uvicorn[standard]
+motor
+pymongo
+python-dotenv
+phonenumbers
+passlib[bcrypt]
+PyJWT
+python-jose[cryptography]
+pydantic
+traceback
+shortuuid
