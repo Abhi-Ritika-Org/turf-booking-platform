@@ -1,6 +1,6 @@
 import traceback
 
-from backend.apis.auth import RefreshAccessToken, UserLogin, UserMe, UserSignup
+from apis.auth import RefreshAccessToken, UserLogin, UserMe, UserSignup
 
 AUTH_PATH = "auth"
 
