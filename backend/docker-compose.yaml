@@ -1,19 +1,27 @@
 services:
-  backend:
-    container_name: backend
+  turf-backend:
     build: .
+    container_name: turf-backend
     ports:
       - "8000:8000"
     env_file:
       - .env
-    volumes:
-      - .:/app
-    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-    restart: always
     depends_on:
-      - redis
+      - turf-mongo
+      - turf-redis
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+  turf-mongo:
+    image: mongo:7
+    container_name: turf-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
 
-  redis:
-    container_name: redis
-    image: redis:latest
-    restart: always
+  turf-redis:
+    image: redis:7
+    container_name: turf-redis
+    # no ports
+
+volumes:
+  mongo_data:
