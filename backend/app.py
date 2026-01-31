@@ -1,10 +1,11 @@
+from importlib import reload
 from flask import Flask
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_restful import Api
-from .config import APP_CONFIG
-from .middleware import configure_middleware
-from .routers import create_routes
+from config import APP_CONFIG
+from middleware import configure_middleware
+from routers import create_routes
 import logging
 
 
@@ -40,6 +41,3 @@ except Exception:
 def health_check():
     return {"status": 200, "data": "Success"}
 
-if __name__ == '__main__':
-    import uvicorn
-    uvicorn.run('backend.app:app', host='0.0.0.0', port=8000, reload=True)
