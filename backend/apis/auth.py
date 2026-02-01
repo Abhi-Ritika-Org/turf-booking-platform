@@ -135,8 +135,7 @@ class UserLogin(Resource):
             set_refresh_cookies(
                 resp,
                 refresh_token,
-                max_age=int(refresh_expires.total_seconds()),
-                path='/api/auth/refresh'
+                max_age=int(refresh_expires.total_seconds())
             )
             return resp
         except Exception:

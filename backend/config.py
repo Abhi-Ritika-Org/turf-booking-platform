@@ -6,7 +6,7 @@ from passlib.context import CryptContext
 
 load_dotenv()
 
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://turf-mongo:27017')
 MONGO_DB = os.getenv('MONGO_DB', 'turfbook')
 JWT_ACCESS_SECRET = os.getenv('JWT_ACCESS_SECRET', 'change_me_access')
 JWT_REFRESH_SECRET = os.getenv('JWT_REFRESH_SECRET', 'change_me_refresh')
