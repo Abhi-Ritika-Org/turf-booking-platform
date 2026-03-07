@@ -1,14 +1,13 @@
 from flask import g, jsonify, make_response, request
 from flask import current_app as app
 from flask_restful import Resource
-from flask_jwt_extended import create_access_token, create_refresh_token, verify_jwt_in_request, get_jwt_identity, set_refresh_cookies
-from datetime import datetime 
+from flask_jwt_extended import create_access_token, create_refresh_token, verify_jwt_in_request, get_jwt_identity, set_refresh_cookies, get_jwt, unset_refresh_cookies
+from datetime import datetime
 import logging
 import shortuuid
 import re
 import phonenumbers
 from phonenumbers.phonenumberutil import NumberParseException
-
 class UserSignup(Resource):
     def __init__(self):
         self.mongo_db = app.config['MONGO_DB']
@@ -49,21 +48,21 @@ class UserSignup(Resource):
             data = request.get_json() or {}
             fields = list(data.keys())
             if "email" not in fields:
-                return make_response({'status': 400,'error': "Email is required"}, 400)
+                return make_response({'status': 400, 'error': "Email is required"}, 400)
             elif "mobile" not in fields:
-                return make_response({'status': 400,'error': "Mobile Number is required"}, 400)
+                return make_response({'status': 400, 'error': "Mobile Number is required"}, 400)
             elif "full_name" not in fields:
-                return make_response({'status': 400,'error': "Name is required"}, 400)
+                return make_response({'status': 400, 'error': "Name is required"}, 400)
             elif "password" not in fields:
-               return make_response({'status': 400,'error': "Password is required"}, 400) 
-            
+                return make_response({'status': 400, 'error': "Password is required"}, 400)
+
             mobile = str(data.get('mobile')).strip()
             email = str(data.get('email')).strip().lower()
             full_name = str(data.get('full_name')).strip()
             password = data.get('password')
 
             # Basic validations
-            if not  self.is_email_valid(email):
+            if not self.is_email_valid(email):
                 return make_response({"status": 400, "error": "Enter valid email"}, 400)
 
             # Validate mobile number format
@@ -73,8 +72,8 @@ class UserSignup(Resource):
             if len(password) < 8:
                 return make_response({'status': 400, 'error': 'Password must be at least 8 characters'}, 400)
 
-            # Check for existing user by email, mobile or username
-            existing = self.mongo_db.users.find_one({'email': email}, {"_id":0})
+            # Check for existing user by email
+            existing = self.mongo_db.users.find_one({'email': email}, {"_id": 0})
             if existing:
                 return make_response({'status': 409, 'error': 'Email already exists'}, 409)
 
@@ -98,13 +97,16 @@ class UserSignup(Resource):
                 return make_response({'status': 500, 'error': 'Error in user signup'}, 500)
         except Exception:
             logging.exception('Error in UserSignup.post')
-            return make_response({'status' : 500, 'error': 'Error in user signup'}, 500)
+            return make_response({'status': 500, 'error': 'Error in user signup'}, 500)
+
 
 class UserLogin(Resource):
     def __init__(self):
         self.mongo_db = app.config['MONGO_DB']
         self.pwd_ctx = app.config['PWD_CONTEXT']
+        self.jwt_access_expires = app.config['JWT_ACCESS_TOKEN_EXPIRES']
         self.jwt_refresh_token_expires = app.config['JWT_REFRESH_TOKEN_EXPIRES']
+        self.redis_client = app.config['REDIS_CLIENT']
 
     def post(self):
         try:
@@ -114,39 +116,59 @@ class UserLogin(Resource):
 
             if not email or not password:
                 return make_response({'status': 400, 'error': 'Email and password are required'}, 400)
-            
+
+            # Validate credentials
             user = self.mongo_db.users.find_one({'email': email}, {'_id': 0})
 
             if not user:
                 return make_response({'status': 400, 'error': 'User does not exists'}, 400)
-            
+
             if not self.pwd_ctx.verify(password, user.get('password', '')):
                 return make_response({'status': 400, 'error': 'Email and password does not match'}, 400)
 
-            access_token = create_access_token(identity=user['user_id'])
-            refresh_token = create_refresh_token(identity=user['user_id'])
+            user_id = user['user_id']
+            logging.info(f"User {user_id} credentials valid")
 
-            resp = make_response(jsonify({
-                'status': 200,
-                'access_token': access_token
-            }), 200)
+            active_session = self.redis_client.get(f"login_session:{user_id}")
+            logging.info(f"Active session check for {user_id}: {active_session}")
 
+            if active_session:
+                # Active session exists
+                logging.info(f"Multiple Device Login Conflict for user {user_id}")
+                return make_response({
+                    'status': 409,
+                    'error': 'Account already logged in on another device',
+                }, 409)
+
+            access_token = create_access_token(identity=user_id)
+            refresh_token = create_refresh_token(identity=user_id)
             refresh_expires = self.jwt_refresh_token_expires
-            set_refresh_cookies(
-                resp,
-                refresh_token,
-                max_age=int(refresh_expires.total_seconds())
-            )
+            max_age = int(refresh_expires.total_seconds())
+
+            resp = make_response(jsonify({'status': 200, 'access_token': access_token}), 200)
+
+            set_refresh_cookies(resp, refresh_token, max_age=max_age)
+            self.redis_client.setex(f"login_session:{user_id}", max_age, 'active')
             return resp
+
         except Exception:
             logging.exception('Error in UserLogin.post')
-            return make_response({'status': 500, 'error': 'Login failed'}, 500)
+            return make_response({'status': 500, 'error': 'Login failed due to unknown error'}, 500)
+
 
 class RefreshAccessToken(Resource):
+    def __init__(self):
+        self.redis_client = app.config['REDIS_CLIENT']
+
     def post(self):
         try:
             verify_jwt_in_request(refresh=True, locations=['cookies'])
+            jwt_data = get_jwt()
             user_id = get_jwt_identity()
+            refresh_jti = jwt_data.get('jti')
+            if not refresh_jti:
+                return make_response({'status': 401, 'error': 'Refresh token invalid'}, 401)
+
             new_access = create_access_token(identity=user_id)
             return make_response({'status': 200, 'access_token': new_access}, 200)
         except Exception:
@@ -154,16 +176,30 @@ class RefreshAccessToken(Resource):
             return make_response({'status': 401, 'error': 'Refresh token expired or invalid'}, 401)
 
 
-class UserMe(Resource):
+class UserLogout(Resource):
     def __init__(self):
-        self.mongo_db = app.config['MONGO_DB']
+        self.redis_client = app.config['REDIS_CLIENT']
+        self.session_manager = RedisSessionManager(
+            self.redis_client,
+            app.config['JWT_ACCESS_TOKEN_EXPIRES']
+        )
 
-    def get(self):
-        # Identity is injected by middleware for protected routes
-        user_id = getattr(g, 'current_user_id', None)
-        if not user_id:
-            return make_response({'status': 401, 'error': 'Unauthorized'}, 401)
-        user = self.mongo_db.users.find_one({'user_id': user_id}, {'_id': 0, 'password': 0})
-        if not user:
-            return make_response({'status': 404, 'error': 'User not found'}, 404)
-        return make_response({'status': 200, 'user': user}, 200)
+    def post(self):
+        try:
+            verify_jwt_in_request(refresh=True, locations=['cookies'])
+            jwt_data = get_jwt()
+            user_id = get_jwt_identity()
+            refresh_jti = jwt_data.get('jti')
+            if not refresh_jti:
+                return make_response({'status': 401, 'error': 'Refresh token invalid'}, 401)
+
+            # Delete refresh token
+            redis_key = f"login_session:{user_id}"
+            self.redis_client.delete(redis_key)
+
+            resp = make_response({'status': 200, 'message': 'Logged out successfully'}, 200)
+            unset_refresh_cookies(resp)
+            return resp
+        except Exception:
+            logging.exception('Error in UserLogout.post')
+            return make_response({'status': 500, 'error': 'Logout failed'}, 500)
