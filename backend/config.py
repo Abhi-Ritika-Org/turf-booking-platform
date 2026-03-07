@@ -3,6 +3,7 @@ import os
 import pymongo
 from datetime import timedelta
 from passlib.context import CryptContext
+import redis
 
 load_dotenv()
 
@@ -15,12 +16,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '15')
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv('REFRESH_TOKEN_EXPIRE_DAYS', '7'))
 JWT_COOKIE_SECURE = os.getenv('JWT_COOKIE_SECURE', 'false').lower() == 'true'
 JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax')
+REDIS_HOST = os.getenv('REDIS_HOST')
+REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+REDIS_DB = int(os.getenv('REDIS_DB', '0'))
 
 # Sync pymongo client (single client used for simplicity)
 MongoClient = pymongo.MongoClient(MONGO_URI)
 MongoDb = MongoClient[MONGO_DB]
 
 pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
+
+# Redis client (single shared client)
+RedisClient = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
 APP_CONFIG = {
     'MONGO_URI': MONGO_URI,
@@ -41,34 +48,5 @@ APP_CONFIG = {
     'JWT_COOKIE_SECURE': JWT_COOKIE_SECURE,
     'JWT_COOKIE_HTTPONLY': True,
     'JWT_COOKIE_SAMESITE': JWT_COOKIE_SAMESITE,
+    'REDIS_CLIENT': RedisClient,
 }
-
-
-def _from_app_or_default(key, default):
-    try:
-        from flask import current_app
-        if current_app:
-            return current_app.config.get(key, default)
-    except RuntimeError:
-        pass
-    return default
-
-
-def get_mongo_client():
-    return _from_app_or_default('MONGO_CLIENT', MongoClient)
-
-
-def get_mongo_db():
-    return _from_app_or_default('MONGO_DB', MongoDb)
-
-
-def get_pwd_context():
-    return _from_app_or_default('PWD_CONTEXT', pwd_context)
-
-
-def get_access_expiry():
-    return _from_app_or_default('JWT_ACCESS_TOKEN_EXPIRES', timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-
-
-def get_refresh_expiry():
-    return _from_app_or_default('JWT_REFRESH_TOKEN_EXPIRES', timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS))

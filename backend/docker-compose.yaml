@@ -9,18 +9,29 @@ services:
     depends_on:
       - turf-mongo
       - turf-redis
-    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    command: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --workers 1 --bind 0.0.0.0:8000 --reload app:flask_app
+
   turf-mongo:
-    image: mongo:7
+    hostname: turf-mongo
+    image: mongo:6.0
+    restart: always
     container_name: turf-mongo
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    # environment:
+    #   - MONGO_INITDB_ROOT_USERNAME=root
+    #   - MONGO_INITDB_ROOT_PASSWORD=secret
+    # command: ["mongod", "--bind_ip_all"]
 
   turf-redis:
     image: redis:7
     container_name: turf-redis
+    ports:
+    - "6379:6379"
     # no ports
 
 volumes:

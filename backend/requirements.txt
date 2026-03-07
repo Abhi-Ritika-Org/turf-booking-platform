@@ -1,10 +1,8 @@
-fastapi
 flask
 flask_cors
 flask_restful
 flask_jwt_extended
-uvicorn[standard]
-asgiref
+gunicorn
 motor
 pymongo
 python-dotenv

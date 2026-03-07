@@ -59,7 +59,7 @@ const Signup = () => {
           const message = payload?.message || payload?.detail || 'Account Created!';
 
           if (status === 200 || status === 201) {
-            toast({ title: 'Success', description: String(message) });
+            toast({ title: 'Success', description: String(message), variant: 'success' });
             navigate('/login');
           } else {
             const err = payload?.error || message || 'Signup failed'
