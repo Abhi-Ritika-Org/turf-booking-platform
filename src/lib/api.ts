@@ -44,6 +44,15 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
+export async function tryRefreshSession(): Promise<boolean> {
+  try {
+    const token = await refreshAccessToken();
+    return Boolean(token);
+  } catch {
+    return false;
+  }
+}
+
 function getRequestKey(config: any) {
   try {
     const method = (config.method || 'get').toLowerCase();
