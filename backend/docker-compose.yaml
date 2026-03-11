@@ -11,7 +11,7 @@ services:
       - turf-redis
     volumes:
       - .:/app
-    command: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker --workers 1 --bind 0.0.0.0:8000 --reload app:flask_app
+    command: gunicorn --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 app:flask_app
 
   turf-mongo:
     hostname: turf-mongo
