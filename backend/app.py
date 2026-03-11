@@ -24,8 +24,6 @@ api = Api(flask_app, BASE_PATH)
 # Let routers.create_routes register all resources via api.add_resource
 create_routes(api)
 
-# Expose Flask WSGI app for Gunicorn
-# Run with: gunicorn --worker-class geventwebsocket.gunicorn.workers.GeventWebSocketWorker app:flask_app
 app = flask_app
 
 # Health check
