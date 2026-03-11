@@ -179,10 +179,6 @@ class RefreshAccessToken(Resource):
 class UserLogout(Resource):
     def __init__(self):
         self.redis_client = app.config['REDIS_CLIENT']
-        self.session_manager = RedisSessionManager(
-            self.redis_client,
-            app.config['JWT_ACCESS_TOKEN_EXPIRES']
-        )
 
     def post(self):
         try:
