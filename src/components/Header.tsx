@@ -9,6 +9,7 @@ export const Header = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const userName = useSelector((state: RootState) => state.auth.userName);
+  const firstName = userName?.trim().split(/\s+/)[0] || 'User';
 
   const handleLogout = async () => {
     await dispatch(logoutUser());
@@ -29,7 +30,7 @@ export const Header = () => {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium text-foreground/90">
-              Welcome {userName || 'User'}
+              Welcome {firstName}
             </span>
             <Button
               variant="outline"
