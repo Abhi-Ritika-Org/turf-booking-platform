@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '@/lib/api'
+import { cancelAllRequests } from '@/lib/api'
 
 export const loginUser = createAsyncThunk(
   'auth/user-login',
@@ -52,8 +53,23 @@ export const signupUser = createAsyncThunk(
   }
 )
 
+export const logoutUser = createAsyncThunk(
+  'auth/user-logout',
+  async (_, { dispatch }) => {
+    try {
+      cancelAllRequests()
+      await api.post('/api/auth/user-logout')
+    } catch {
+      // Ignore API errors and force local logout.
+    } finally {
+      dispatch(clearToken())
+    }
+  }
+)
+
 const initialState = {
   token: null as string | null,
+  userName: null as string | null,
   status: 'idle',
   error: null as unknown,
 }
@@ -65,8 +81,12 @@ const authSlice = createSlice({
     setToken(state, action) {
       state.token = action.payload
     },
+    setUserName(state, action) {
+      state.userName = action.payload
+    },
     clearToken(state) {
       state.token = null
+      state.userName = null
     }
   },
   extraReducers: (builder) => {
@@ -77,8 +97,10 @@ const authSlice = createSlice({
       })
       .addCase(loginUser.fulfilled, (state, action) => {
         const token = action.payload?.access_token
+        const userName = action.payload?.full_name || null
         state.status = 'succeeded'
         state.token = token
+        state.userName = userName
       })
       .addCase(loginUser.rejected, (state, action) => {
         // Ignore canceled requests (no UI error)
@@ -98,9 +120,13 @@ const authSlice = createSlice({
       .addCase(signupUser.fulfilled, (state, action) => {
         // If backend returns a token on signup, persist it similarly to login
         const token = action.payload?.access_token
+        const userName = action.payload?.full_name || null
         state.status = 'succeeded'
         if (token) {
           state.token = token
+        }
+        if (userName) {
+          state.userName = userName
         }
       })
       .addCase(signupUser.rejected, (state, action) => {
@@ -116,5 +142,5 @@ const authSlice = createSlice({
   }
 })
 
-export const { setToken, clearToken } = authSlice.actions
+export const { setToken, setUserName, clearToken } = authSlice.actions
 export default authSlice.reducer

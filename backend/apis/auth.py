@@ -145,7 +145,11 @@ class UserLogin(Resource):
             refresh_expires = self.jwt_refresh_token_expires
             max_age = int(refresh_expires.total_seconds())
 
-            resp = make_response(jsonify({'status': 200, 'access_token': access_token}), 200)
+            resp = make_response(jsonify({
+                'status': 200,
+                'access_token': access_token,
+                'full_name': user.get('full_name') or '',
+            }), 200)
 
             set_refresh_cookies(resp, refresh_token, max_age=max_age)
             self.redis_client.setex(f"login_session:{user_id}", max_age, 'active')

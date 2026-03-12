@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import api from '@/lib/api';
 import { useToast } from "@/hooks/use-toast";
 import { useDispatch } from 'react-redux';
-import { setToken } from '@/store/authSlice';
+import { setToken, setUserName } from '@/store/authSlice';
 import type { AppDispatch } from '@/store';
 import { useFormik } from 'formik';
 import { loginValidationSchema } from '@/validations';
@@ -46,30 +46,35 @@ const Login = () => {
       const payload = response.data;
       const status = payload?.status;
 
-      // Case 1 or Case 3B: Successful login
+      // Successful login
       if (status === 200) {
         const token = payload?.access_token;
+        const fullName = payload?.full_name;
         if (token) {
           dispatch(setToken(token));
+          if (fullName) {
+            dispatch(setUserName(String(fullName)));
+          }
           navigate('/');
         }
       }
-      // Case 2: Conflict detected
-      else if (status === 'conflict') {
-        toast({
-          title: 'Account Already Logged In',
-          description: 'This account is currently logged in on another device',
-          variant: 'destructive',
-        });
-      }
-      // Other errors
+      // Other non-200 responses
       else {
         const err = payload?.error || 'Login failed';
         toast({ title: 'Login Failed', description: formatError(err), variant: 'destructive' });
       }
     } catch (error: any) {
-      const errMsg = error?.response?.data?.error || formatError(error);
-      toast({ title: 'Login Failed', description: errMsg, variant: 'destructive' });
+      const status = error?.response?.status;
+      if (status === 409) {
+        toast({
+          title: 'Account Already Logged In',
+          description: 'This account is currently logged in on another device',
+          variant: 'destructive',
+        });
+      } else {
+        const errMsg = error?.response?.data?.error || formatError(error);
+        toast({ title: 'Login Failed', description: errMsg, variant: 'destructive' });
+      }
     }
   };
 
