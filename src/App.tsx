@@ -25,7 +25,7 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
       setIsChecking(false);
       return;
     }
-
+// test comment added to test protected branch ruleset
     let isMounted = true;
 
     const check = async () => {
