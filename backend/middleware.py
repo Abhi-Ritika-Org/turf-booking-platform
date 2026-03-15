@@ -8,10 +8,12 @@ load_dotenv()
 
 raw = os.getenv('FRONTEND_ORIGINS', 'http://localhost:8000')
 FRONTEND_ORIGINS = [o.strip() for o in raw.split(',') if o.strip()]
+### if not present in envs then add from here
 for host in (
     'http://127.0.0.1:5173', 'http://localhost:5173',
     'http://127.0.0.1:3000', 'http://localhost:3000',
-    'http://localhost:8080', 'http://127.0.0.1:8080'
+    'http://localhost:8080', 'http://127.0.0.1:8080',
+    'http://localhost:8081', 'http://127.0.0.1:8081'
 ):
     if host not in FRONTEND_ORIGINS:
         FRONTEND_ORIGINS.append(host)
@@ -53,6 +55,7 @@ def configure_middleware(app):
         try:
             verify_jwt_in_request(optional=False, locations=['headers'])
             g.current_user_id = get_jwt_identity()
+            request.environ['current_user_id'] = g.current_user_id
         except Exception:
             logging.debug("Access token validation failed", exc_info=True)
             return make_response({'status': 401, 'error': 'Invalid or expired access token'}, 401)
