@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { store } from '@/store';
-import { setToken, clearToken } from '@/store/authSlice';
+import { setToken, clearToken, setUserName } from '@/store/authSlice';
+import { setUserData, clearUserData } from '@/store/userDataSlice';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -25,16 +26,33 @@ async function refreshAccessToken() {
   refreshPromise = axios
     .create({ baseURL: API_BASE, withCredentials: true })
     .post('/api/auth/refresh')
-    .then((res) => {
+    .then(async (res) => {
       const token = res.data?.access_token as string | undefined;
       if (token) {
         store.dispatch(setToken(token));
+
+        // Keep user profile hydrated after session restoration.
+        try {
+          const userResponse = await axios.create({ baseURL: API_BASE, withCredentials: true }).get('/api/auth/current-user-data', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const userData = userResponse?.data ?? null;
+          store.dispatch(setUserData(userData));
+
+          const fullName = userData && typeof userData === 'object' ? (userData as Record<string, unknown>).full_name : null;
+          store.dispatch(setUserName(typeof fullName === 'string' ? fullName : null));
+        } catch {
+          // Refresh succeeded, so don't fail auth if profile fetch is temporarily unavailable.
+          store.dispatch(setUserData(null));
+        }
+
         return token;
       }
       throw new Error('No access token returned from refresh');
     })
     .catch((err) => {
       store.dispatch(clearToken());
+      store.dispatch(clearUserData());
       throw err;
     })
     .finally(() => {

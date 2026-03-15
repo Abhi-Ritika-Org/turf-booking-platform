@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '@/lib/api'
 import { cancelAllRequests } from '@/lib/api'
+import { clearUserData } from './userDataSlice'
 
 export const loginUser = createAsyncThunk(
   'auth/user-login',
@@ -63,6 +64,7 @@ export const logoutUser = createAsyncThunk(
       // Ignore API errors and force local logout.
     } finally {
       dispatch(clearToken())
+      dispatch(clearUserData())
     }
   }
 )
