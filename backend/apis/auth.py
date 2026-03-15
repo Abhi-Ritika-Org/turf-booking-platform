@@ -8,6 +8,7 @@ import shortuuid
 import re
 import phonenumbers
 from phonenumbers.phonenumberutil import NumberParseException
+
 class UserSignup(Resource):
     def __init__(self):
         self.mongo_db = app.config['MONGO_DB']
@@ -145,11 +146,7 @@ class UserLogin(Resource):
             refresh_expires = self.jwt_refresh_token_expires
             max_age = int(refresh_expires.total_seconds())
 
-            resp = make_response(jsonify({
-                'status': 200,
-                'access_token': access_token,
-                'full_name': user.get('full_name') or '',
-            }), 200)
+            resp = make_response(jsonify({'status': 200, 'access_token': access_token}), 200)
 
             set_refresh_cookies(resp, refresh_token, max_age=max_age)
             self.redis_client.setex(f"login_session:{user_id}", max_age, 'active')
@@ -203,3 +200,16 @@ class UserLogout(Resource):
         except Exception:
             logging.exception('Error in UserLogout.post')
             return make_response({'status': 500, 'error': 'Logout failed'}, 500)
+
+class CurrentUserData(Resource):
+    def __init__(self):
+        self.mongo_db = app.config['MONGO_DB']
+
+    def get(self):
+        try:
+            user_id = get_jwt_identity()
+            user_data = self.mongo_db.users.find_one({"user_id" : user_id}, {"_id":0, "password": 0, "created_at": 0})
+            return user_data
+        except Exception:
+            logging.exception('Error in CurrentUserData.get')
+            return make_response({'status': 500, 'error': 'Failed to fetch user data'}, 500)
