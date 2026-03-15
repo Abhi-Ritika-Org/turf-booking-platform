@@ -11,7 +11,7 @@ services:
       - turf-redis
     volumes:
       - .:/app
-    command: gunicorn --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 app:flask_app
+    command: gunicorn --reload --reload-engine=poll --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 --access-logfile - --error-logfile - --log-level debug app:flask_app
 
   turf-mongo:
     hostname: turf-mongo
@@ -34,5 +34,18 @@ services:
     - "6379:6379"
     # no ports
 
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: turf-jenkins
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
 volumes:
   mongo_data:
+  jenkins_home:
