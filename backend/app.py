@@ -6,9 +6,31 @@ from config import APP_CONFIG
 from middleware import configure_middleware
 from routers import create_routes
 
+##### Logging setup
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,  # change to INFO in production
+    format="%(asctime)s [%(levelname)s] [%(name)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
+# Silence noisy libraries
+logging.getLogger("pymongo").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("boto3").setLevel(logging.WARNING)
+logging.getLogger("botocore").setLevel(logging.WARNING)
 
 def create_app():
     app = Flask(__name__)
+
+    # Attach Gunicorn logger to Flask app
+    gunicorn_logger = logging.getLogger("gunicorn.error")
+    if gunicorn_logger.handlers:
+        app.logger.handlers = gunicorn_logger.handlers
+        app.logger.setLevel(gunicorn_logger.level)
+    else:
+        app.logger.setLevel(logging.DEBUG)
 
     app.config.from_mapping(APP_CONFIG)
     configure_middleware(app)

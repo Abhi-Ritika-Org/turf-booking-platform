@@ -19,6 +19,10 @@ JWT_COOKIE_SAMESITE = os.getenv('JWT_COOKIE_SAMESITE', 'Lax')
 REDIS_HOST = os.getenv('REDIS_HOST')
 REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
 REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
+AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
+AWS_REGION = os.getenv('AWS_REGION')
+S3_TURF_ASSETS_BUCKET = os.getenv('S3_TURF_ASSETS_BUCKET')
 
 # Sync pymongo client (single client used for simplicity)
 MongoClient = pymongo.MongoClient(MONGO_URI)
@@ -49,4 +53,8 @@ APP_CONFIG = {
     'JWT_COOKIE_HTTPONLY': True,
     'JWT_COOKIE_SAMESITE': JWT_COOKIE_SAMESITE,
     'REDIS_CLIENT': RedisClient,
+    'AWS_ACCESS_KEY': AWS_ACCESS_KEY,
+    'AWS_SECRET_KEY': AWS_SECRET_KEY,
+    'AWS_REGION': AWS_REGION,
+    'S3_TURF_ASSETS_BUCKET': S3_TURF_ASSETS_BUCKET
 }
