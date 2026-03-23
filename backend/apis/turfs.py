@@ -5,6 +5,7 @@ from flask_restful import Resource
 from datetime import datetime
 # from backend.helpers.parse_dates import get_parsed_dates
 from helpers.S3_service import S3Service
+from helpers.paginate_data import paginate_data
 
 class CreateTurf(Resource):
     def __init__(self, db):
@@ -46,16 +47,19 @@ class TurfList(Resource):
         
             # start_date, end_date = get_parsed_dates(start_date, end_date)
             
-            turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}).skip(offset).limit(limit))
+            # turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}).skip(offset).limit(limit))
+            turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}))
+            turfs = paginate_data(turfs, offset, limit)
+            total_turfs = self.mongo_db['turfs'].count_documents({})
             if turfs:
                 for turf in turfs:
                     thumbnail_key = turf.get('thumbnail')
-                    if thumbnail_key:
-                        s3_service = S3Service(bucket_name=self.bucket_name)
-                        thumbnail_url = s3_service.get_object_url(thumbnail_key)
-                        turf['thumbnail'] = thumbnail_url
+                    # if thumbnail_key:
+                    #     s3_service = S3Service(bucket_name=self.bucket_name)
+                    #     thumbnail_url = s3_service.get_object_url(thumbnail_key)
+                    #     turf['thumbnail'] = thumbnail_url
             
-                return make_response(jsonify({"status": 200, "data" : turfs}), 200)
+                return make_response(jsonify({"status": 200, "data" : turfs, "total": total_turfs}), 200)
             else:
                 return make_response({'status': 404, 'message': 'No turfs found'}, 404)
         except Exception as e:
