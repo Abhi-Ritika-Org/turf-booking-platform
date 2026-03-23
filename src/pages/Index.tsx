@@ -1,43 +1,74 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
-import { BookingForm } from "@/components/BookingForm";
-import { BookingsList } from "@/components/BookingsList";
+import { BookingsList } from "@/components/TurfListing";
+import { CommonPagination } from "@/components/CommonPagination";
 import api from '@/lib/api';
 
-interface Booking {
-  id: string;
+interface TurfOwner {
   name: string;
   phone: string;
-  date: string;
-  time_slot: string;
-  created_at: string;
-  user_id?: string;
+}
+
+interface Turf {
+  id?: string;
+  thumbnail?: string;
+  name?: string;
+  location?: string;
+  avg_rating?: number;
+  total_reviews?: number;
+  price_per_hour?: number;
+  sports?: string[];
+  amenities?: string[];
+  owner?: TurfOwner;
 }
 
 const Index = () => {
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [allBookedSlots, setAllBookedSlots] = useState<{ date: string; time_slot: string }[]>([]);
+  const [turfs, setTurfs] = useState<Turf[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [lastPageCount, setLastPageCount] = useState(0);
+  const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
 
-  const fetchBookings = async () => {
-    const today = new Date().toISOString().split('T')[0];
+  const fetchTurfs = async (nextPage: number, nextLimit: number) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const res = await api.get('/api/bookings', { params: { from: today } });
-      const allBookings = res.data || [];
-      setBookings(allBookings);
-      setAllBookedSlots(allBookings.map((booking: any) => ({ date: booking.date, time_slot: booking.time_slot })));
-    } catch (err) {
-      // ignore for now
-    }
+      const response = await api.post('api/turfs/turf-list', {
+        offset: nextPage - 1,
+        limit: nextLimit,
+      });
+      const turfList = response?.data?.data ?? [];
+      const list = Array.isArray(turfList) ? turfList : [];
+      setTurfs(list);
+      setLastPageCount(list.length);
 
-    setIsLoading(false);
+      const total_turfs = response?.data?.total;
+      setTotalCount(total_turfs);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Please try again in a moment.');
+      setTurfs([]);
+      setLastPageCount(0);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchBookings();
-  }, []);
+    fetchTurfs(page, limit);
+  }, [page, limit]);
+
+  const handlePaginationChange = ({ page: nextPage, limit: nextLimit }: { page: number; limit: number }) => {
+    if (nextLimit !== limit) {
+      setLimit(nextLimit);
+      setPage(1);
+      return;
+    }
+    setPage(nextPage);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -46,29 +77,30 @@ const Index = () => {
       <main>
         <HeroSection />
 
-        {/* Booking Section */}
+        {/* Turf Listing Section */}
         <section id="book" className="py-16 md:py-24">
           <div className="container mx-auto px-4">
             <div className="text-center mb-12 animate-fade-in">
               <h2 className="font-display text-3xl md:text-4xl font-bold text-foreground mb-3">
-                Reserve Your Slot
+                Explore Premium Turfs
               </h2>
               <p className="text-muted-foreground max-w-md mx-auto">
-                Pick your date and time. We'll handle the rest.
+                Find the right venue by location, pricing, amenities, and sports options.
               </p>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-8 max-w-5xl mx-auto">
-              <div className="animate-fade-in" style={{ animationDelay: "100ms" }}>
-                <BookingForm
-                  onBookingSuccess={fetchBookings}
-                  bookedSlots={allBookedSlots}
+            <div className="max-w-7xl mx-auto animate-fade-in" style={{ animationDelay: "100ms" }}>
+              <BookingsList turfs={turfs} isLoading={isLoading} error={error} />
+              {!error && (
+                <CommonPagination
+                  page={page}
+                  limit={limit}
+                  totalCount={totalCount || 0}
+                  onChange={handlePaginationChange}
+                  limitOptions={[5, 10, 25, 50]}
+                  label="Turfs"
                 />
-              </div>
-
-              <div className="animate-fade-in" style={{ animationDelay: "200ms" }}>
-                <BookingsList bookings={bookings} isLoading={isLoading} />
-              </div>
+              )}
             </div>
           </div>
         </section>
@@ -77,7 +109,7 @@ const Index = () => {
         <footer className="py-8 border-t border-border">
           <div className="container mx-auto px-4 text-center">
             <p className="text-sm text-muted-foreground">
-              © 2026 TurfBook. Play your best game.
+              © 2026 TurfBookingPlatform. Play your best game.
             </p>
           </div>
         </footer>
