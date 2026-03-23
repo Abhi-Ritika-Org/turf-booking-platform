@@ -10,8 +10,6 @@ const instance = axios.create({
   withCredentials: true,
 });
 
-// Track in-flight requests to support cancellation
-const pendingRequests = new Map<string, AbortController>();
 
 let refreshPromise: Promise<string | null> | null = null;
 
@@ -71,17 +69,6 @@ export async function tryRefreshSession(): Promise<boolean> {
   }
 }
 
-function getRequestKey(config: any) {
-  try {
-    const method = (config.method || 'get').toLowerCase();
-    const url = config.url || '';
-    const params = config.params ? JSON.stringify(config.params) : '';
-    const data = config.data ? JSON.stringify(config.data) : '';
-    return `${method}:${url}?p=${params}&d=${data}`;
-  } catch (err) {
-    return `${config.method || 'get'}:${config.url}`;
-  }
-}
 
 instance.interceptors.request.use((config) => {
   const accessToken = getAccessToken();
@@ -90,49 +77,12 @@ instance.interceptors.request.use((config) => {
     hdrs['Authorization'] = `Bearer ${accessToken}`;
     config.headers = hdrs;
   }
-
-  // Respect externally-provided AbortSignal
-  if (config.signal) return config;
-
-  const key = getRequestKey(config);
-
-  // Cancel previous identical request
-  if (pendingRequests.has(key)) {
-    try {
-      const prev = pendingRequests.get(key);
-      prev?.abort();
-    } catch (e) {
-      // ignore
-    }
-    pendingRequests.delete(key);
-  }
-
-  const controller = new AbortController();
-  config.signal = controller.signal;
-  pendingRequests.set(key, controller);
-
   return config;
 });
 
 instance.interceptors.response.use(
-  (response) => {
-    try {
-      const key = getRequestKey(response.config);
-      pendingRequests.delete(key);
-    } catch (e) {
-      // ignore
-    }
-    return response;
-  },
+  (response) => response,
   (error) => {
-    try {
-      const cfg = (error && error.config) || {};
-      const key = getRequestKey(cfg);
-      pendingRequests.delete(key);
-    } catch (e) {
-      // ignore
-    }
-
     const status = error?.response?.status;
     const originalRequest: any = error?.config || {};
     const isAuthRefresh = typeof originalRequest?.url === 'string' && originalRequest.url.includes('/auth/refresh');
@@ -159,15 +109,5 @@ instance.interceptors.response.use(
   }
 );
 
-export function cancelAllRequests() {
-  for (const [, controller] of pendingRequests) {
-    try {
-      controller.abort();
-    } catch (e) {
-      // ignore
-    }
-  }
-  pendingRequests.clear();
-}
 
 export default instance;

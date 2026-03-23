@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { cancelAllRequests, tryRefreshSession } from '@/lib/api';
+import { tryRefreshSession } from '@/lib/api';
 import type { RootState } from '@/store';
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -79,24 +79,12 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 const RouterWithCancel = () => {
-  const location = useLocation();
-  useEffect(() => {
-    cancelAllRequests();
-  }, [location]);
 
   return (
     <Routes>
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
-      {/* <Route path="/app" element={<Navigate to="/" replace />} /> */}
-      {/* Show Login as the initial page */}
-      {/* <Route path="/" element={<Index />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} /> */}
-      {/* Main app after login */}
-      {/* <Route path="/app" element={<Index />} />
-      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
