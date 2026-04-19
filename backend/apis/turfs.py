@@ -35,33 +35,31 @@ class TurfList(Resource):
     def __init__(self):
         self.mongo_db = app.config['MONGO_DB']
         self.bucket_name = app.config['S3_TURF_ASSETS_BUCKET']
+        # self.s3_base_url = app.config.get('S3_BASE_URL', '')
+        self.s3_base_url = "https://invalid_url_for_testing_purposes.com"
 
     def post(self):
         """List all turfs"""
         try:
             data = request.get_json() or {}
-            # start_date = data.get('from_date')
-            # end_date = data.get('end_date')
             offset = data.get('offset', 0)
             limit = data.get('limit', 10)
-        
+            skip = offset * limit
             # start_date, end_date = get_parsed_dates(start_date, end_date)
             
-            # turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}).skip(offset).limit(limit))
-            turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}))
-            turfs = paginate_data(turfs, offset, limit)
+            turfs = list(self.mongo_db['turfs'].find({}, {'_id': 0}).skip(skip).limit(limit))
+            # turfs = paginate_data(turfs, offset, limit)
             total_turfs = self.mongo_db['turfs'].count_documents({})
             if turfs:
                 for turf in turfs:
                     thumbnail_key = turf.get('thumbnail')
-                    # if thumbnail_key:
-                    #     s3_service = S3Service(bucket_name=self.bucket_name)
-                    #     thumbnail_url = s3_service.get_object_url(thumbnail_key)
-                    #     turf['thumbnail'] = thumbnail_url
+                    if thumbnail_key:
+                        turf['thumbnail_url'] = f"{self.s3_base_url}/{thumbnail_key}/paused"
             
-                return make_response(jsonify({"status": 200, "data" : turfs, "total": total_turfs}), 200)
+                return make_response(jsonify({ "status": True, "data" : turfs, "total": total_turfs}), 200)
             else:
-                return make_response({'status': 404, 'message': 'No turfs found'}, 404)
+                return make_response({"status": False, "message": "No turfs found"}, 404)
         except Exception as e:
-            logging.exception('Error in TurfList.get', exc_info=True)
-            return make_response({'status': 500, 'error': str(e)}, 500)
+            logging.exception("Error in TurfList.get", exc_info=True)
+            return make_response({"status": False, "error": str(e)}, 500)
+        
