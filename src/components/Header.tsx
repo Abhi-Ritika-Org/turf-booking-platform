@@ -1,5 +1,6 @@
 import { Volleyball, LogOut } from "lucide-react";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
+import { useAppSelector } from "@/hooks/useAppSelector";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import type { AppDispatch, RootState } from "@/store";
@@ -8,8 +9,9 @@ import { logoutUser } from "@/store/authSlice";
 export const Header = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const userName = useSelector((state: RootState) => state.auth.userName);
-  const firstName = userName?.trim().split(/\s+/)[0] || 'User';
+  const userData = useAppSelector((state) => state.userData);
+  const fullName = typeof userData?.full_name === 'string' ? userData.full_name : '';
+  const firstName = fullName.trim().split(/\s+/)[0] || 'User';
 
   const handleLogout = async () => {
     await dispatch(logoutUser());

@@ -23,6 +23,7 @@ AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
 AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
 S3_TURF_ASSETS_BUCKET = os.getenv('S3_TURF_ASSETS_BUCKET')
+S3_BASE_URL = os.getenv('S3_BASE_URL')
 
 # Sync pymongo client (single client used for simplicity)
 MongoClient = pymongo.MongoClient(MONGO_URI)
@@ -56,5 +57,6 @@ APP_CONFIG = {
     'AWS_ACCESS_KEY': AWS_ACCESS_KEY,
     'AWS_SECRET_KEY': AWS_SECRET_KEY,
     'AWS_REGION': AWS_REGION,
-    'S3_TURF_ASSETS_BUCKET': S3_TURF_ASSETS_BUCKET
+    'S3_TURF_ASSETS_BUCKET': S3_TURF_ASSETS_BUCKET,
+    'S3_BASE_URL': S3_BASE_URL,
 }

@@ -2,23 +2,20 @@ import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 
 type UserData = Record<string, unknown>
 
-interface UserDataState {
-  data: UserData | null
-}
+type UserDataState = UserData | null;
 
-const initialState: UserDataState = {
-  data: null,
-}
+const initialState: UserDataState = null;
+
 
 const userDataSlice = createSlice({
   name: 'userData',
   initialState,
   reducers: {
-    setUserData(state, action: PayloadAction<UserData | null>) {
-      state.data = action.payload
+    setUserData(_state, action: PayloadAction<UserData | null>) {
+      return action.payload;
     },
-    clearUserData(state) {
-      state.data = null
+    clearUserData(_state) {
+      return null;
     },
   },
 })

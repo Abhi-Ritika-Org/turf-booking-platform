@@ -9,6 +9,7 @@ import api from '@/lib/api';
 import { useToast } from "@/hooks/use-toast";
 import { useDispatch } from 'react-redux';
 import { setToken, setUserName } from '@/store/authSlice';
+import { setUserData } from '@/store/userDataSlice';
 import type { AppDispatch } from '@/store';
 import { useFormik } from 'formik';
 import { loginValidationSchema } from '@/validations';
@@ -52,8 +53,16 @@ const Login = () => {
         const fullName = payload?.full_name;
         if (token) {
           dispatch(setToken(token));
-          if (fullName) {
-            dispatch(setUserName(String(fullName)));
+          try {
+            // Fetch user data after login
+            const userResponse = await api.get('/api/auth/current-user-data', {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+            dispatch(setUserData(userResponse.data));
+          } catch (error) {
+            dispatch(setUserData(null));
           }
           navigate('/');
         }
