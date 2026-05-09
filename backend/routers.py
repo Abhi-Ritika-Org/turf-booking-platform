@@ -2,7 +2,7 @@ import traceback
 
 from apis.auth import RefreshAccessToken, UserLogin, UserLogout, UserSignup, CurrentUserData
 # from backend.apis.turfs import CreateBooking, ListBookings
-from apis.turfs import TurfList
+from apis.turfs import TurfList, TurfDetails
 
 AUTH_PATH = "auth"
 BOOKINGS_PATH = "bookings"
@@ -24,6 +24,7 @@ def create_routes(api):
         #Turf routes
         # api.add_resource(CreateTurf, f"{TURFS_PATH}/create-turf")
         api.add_resource(TurfList, f"{TURFS_PATH}/turf-list")
+        api.add_resource(TurfDetails, f"{TURFS_PATH}/turf-details/<string:turf_id>")
 
     except Exception:
         print("Error in routes")
