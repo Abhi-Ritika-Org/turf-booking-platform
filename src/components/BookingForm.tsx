@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Calendar, Clock, Phone, User, CheckCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,8 +33,9 @@ export const BookingForm = ({ onBookingSuccess, bookedSlots }: BookingFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const { toast } = useToast();
-  const now = new Date();
-  const today = now.toISOString().split("T")[0];
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0];
   const isSlotBooked = (slot: string) => {
     return bookedSlots.some(
       (booking) => booking.date === date && booking.time_slot === slot
@@ -92,7 +93,6 @@ export const BookingForm = ({ onBookingSuccess, bookedSlots }: BookingFormProps)
       onBookingSuccess();
     }, 2500);
   };
-
   if (showSuccess) {
     return (
       <Card className="turf-card-shadow animate-scale-in overflow-hidden">

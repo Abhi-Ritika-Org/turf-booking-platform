@@ -1,72 +1,46 @@
-import { Volleyball, LogOut, UserCircle2, House } from "lucide-react";
-import { useDispatch, useSelector } from "react-redux";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Volleyball, Menu } from "lucide-react";
+import { useSelector } from "react-redux";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { AppDispatch, RootState } from "@/store";
-import { logoutUser } from "@/store/authSlice";
+import { Sidebar } from "@/components/Sidebar";
+import type { RootState } from "@/store";
 
 export const Header = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
-  const location = useLocation();
   const userName = useSelector((state: RootState) => state.auth.userName);
   const firstName = userName?.trim().split(/\s+/)[0] || 'User';
-  const isHomePage = location.pathname === '/';
-  const isProfilePage = location.pathname === '/profile';
-
-  const handleLogout = async () => {
-    await dispatch(logoutUser());
-    navigate('/login');
-  };
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-border/50">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
-            <div className="turf-gradient p-2 rounded-lg">
-              <Volleyball className="h-5 w-5 text-primary-foreground" />
+    <>
+      <header className="fixed top-0 left-0 right-0 z-50 glass-effect border-b border-border/50">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-2">
+              <div className="turf-gradient p-2 rounded-lg">
+                <Volleyball className="h-5 w-5 text-primary-foreground" />
+              </div>
+              <span className="font-display font-bold text-lg text-foreground">
+                TurfBook
+              </span>
             </div>
-            <span className="font-display font-bold text-lg text-foreground">
-              TurfBook
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-foreground/90">
-              Welcome {firstName}
-            </span>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate('/')}
-              disabled={isHomePage}
-              className="flex items-center gap-2"
-            >
-              <House className="h-4 w-4" />
-              Home
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => navigate('/profile')}
-              disabled={isProfilePage}
-              className="flex items-center gap-2"
-            >
-              <UserCircle2 className="h-4 w-4" />
-              Profile
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Logout
-            </Button>
+
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-foreground/90">
+                Welcome, {firstName}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSidebarOpen(true)}
+                className="hover:bg-accent"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    </>
   );
 };

@@ -117,15 +117,18 @@ class UserLogin(Resource):
             force_login = bool(data.get('force_login', False))
 
             if not email or not password:
+                logging.info('Login rejected: missing email or password')
                 return make_response({'status': 400, 'error': 'Email and password are required'}, 400)
 
             # Validate credentials
             user = self.mongo_db.users.find_one({'email': email}, {'_id': 0})
 
             if not user:
-                return make_response({'status': 400, 'error': 'User does not exists'}, 400)
+                logging.info('Login rejected: user not found for email=%s', email)
+                return make_response({'status': 400, 'error': 'User does not exist'}, 400)
 
             if not self.pwd_ctx.verify(password, user.get('password', '')):
+                logging.info('Login rejected: invalid password for email=%s', email)
                 return make_response({'status': 400, 'error': 'Email and password does not match'}, 400)
 
             user_id = user['user_id']
@@ -231,6 +234,23 @@ class CurrentUserData(Resource):
     def __init__(self):
         self.mongo_db = app.config['MONGO_DB']
 
+    def _is_mobile_valid(self, mobile: str) -> bool:
+        try:
+            if not mobile:
+                return False
+            m_raw = str(mobile).strip()
+            if m_raw.startswith('+'):
+                parsed = phonenumbers.parse(m_raw, None)
+                return phonenumbers.is_valid_number(parsed)
+
+            digits = ''.join(ch for ch in m_raw if ch.isdigit())
+            if len(digits) < 7 or len(digits) > 15:
+                return False
+            parsed = phonenumbers.parse('+' + digits, None)
+            return phonenumbers.is_valid_number(parsed)
+        except Exception:
+            return False
+
     def get(self):
         try:
             user_id = get_jwt_identity()
@@ -239,3 +259,44 @@ class CurrentUserData(Resource):
         except Exception:
             logging.exception('Error in CurrentUserData.get')
             return make_response({'status': 500, 'error': 'Failed to fetch user data'}, 500)
+
+    def put(self):
+        try:
+            user_id = get_jwt_identity()
+            data = request.get_json() or {}
+
+            full_name = str(data.get('full_name', '')).strip()
+            mobile = str(data.get('mobile', '')).strip()
+
+            if not full_name:
+                return make_response({'status': 400, 'error': 'Full name is required'}, 400)
+
+            if not mobile:
+                return make_response({'status': 400, 'error': 'Mobile number is required'}, 400)
+
+            if not self._is_mobile_valid(mobile):
+                return make_response({'status': 400, 'error': 'Enter a valid mobile number (include country code or provide local number)'}, 400)
+
+            updated = self.mongo_db.users.update_one(
+                {"user_id": user_id},
+                {
+                    "$set": {
+                        "full_name": full_name,
+                        "mobile": mobile,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+
+            if updated.matched_count == 0:
+                return make_response({'status': 404, 'error': 'User not found'}, 404)
+
+            user_data = self.mongo_db.users.find_one(
+                {"user_id": user_id},
+                {"_id": 0, "password": 0, "created_at": 0},
+            )
+
+            return make_response({'status': 200, 'message': 'Profile updated successfully', 'data': user_data}, 200)
+        except Exception:
+            logging.exception('Error in CurrentUserData.put')
+            return make_response({'status': 500, 'error': 'Failed to update profile'}, 500)

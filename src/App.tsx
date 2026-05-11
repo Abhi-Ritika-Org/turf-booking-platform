@@ -2,11 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { cancelAllRequests, tryRefreshSession } from '@/lib/api';
-import { useToast } from '@/hooks/use-toast';
+import { tryRefreshSession } from '@/lib/api';
 import { clearToken } from '@/store/authSlice';
 import { clearUserData } from '@/store/userDataSlice';
 import type { AppDispatch, RootState } from '@/store';
@@ -15,6 +14,24 @@ import Login from "./pages/Login";
 import Profile from "./pages/Profile.tsx";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import BookingHistory from "./pages/BookingHistory";
+import Notifications from "./pages/Notifications";
+import Favorites from "./pages/Favorites";
+import WalletPage from "./pages/Wallet";
+import Help from "./pages/Help";
+import About from "./pages/About";
+import SettingsProfile from "./pages/Settings/Profile";
+import SettingsPrivacy from "./pages/Settings/Privacy";
+import SettingsNotifications from "./pages/Settings/Notifications";
+import SettingsSecurity from "./pages/Settings/Security";
+import {
+  getActiveLeader,
+  hasActiveLeaderFromAnotherTab,
+  isCurrentTabLeader,
+  releaseSessionLeadership,
+  startSessionHeartbeat,
+  stopSessionHeartbeat,
+} from '@/lib/authSession';
 
 const queryClient = new QueryClient();
 
@@ -29,7 +46,13 @@ const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
       setIsChecking(false);
       return;
     }
-// test comment added to test protected branch ruleset
+
+    if (hasActiveLeaderFromAnotherTab()) {
+      setIsAuthenticated(false);
+      setIsChecking(false);
+      return;
+    }
+
     let isMounted = true;
 
     const check = async () => {
@@ -62,6 +85,12 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
       return;
     }
 
+    if (hasActiveLeaderFromAnotherTab()) {
+      setIsAuthenticated(false);
+      setIsChecking(false);
+      return;
+    }
+
     let isMounted = true;
 
     const check = async () => {
@@ -84,36 +113,57 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 
 const RouterWithCancel = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { toast } = useToast();
-  const location = useLocation();
-
-  useEffect(() => {
-    cancelAllRequests();
-  }, [location]);
 
   useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
-      if (event.key !== 'auth:session-takeover' || !event.newValue) return;
+      if (event.key !== 'auth:session-leader') return;
+
+      const leader = getActiveLeader();
+      if (leader && leader.tabId === sessionStorage.getItem('auth:tab-id')) {
+        return;
+      }
 
       dispatch(clearToken());
       dispatch(clearUserData());
-      cancelAllRequests();
-      toast({
-        title: 'Logged Out',
-        description: 'Session moved to another tab/device. Please login again to continue.',
-        variant: 'destructive',
-      });
       window.location.href = '/login';
     };
 
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, [dispatch, toast]);
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (isCurrentTabLeader()) {
+      startSessionHeartbeat();
+    }
+
+    const handleBeforeUnload = () => {
+      releaseSessionLeadership();
+      stopSessionHeartbeat();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      stopSessionHeartbeat();
+    };
+  }, []);
 
   return (
     <Routes>
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/bookings" element={<ProtectedRoute><BookingHistory /></ProtectedRoute>} />
+      <Route path="/booking-history" element={<ProtectedRoute><BookingHistory /></ProtectedRoute>} />
+      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+      <Route path="/favorites" element={<ProtectedRoute><Favorites /></ProtectedRoute>} />
+      <Route path="/wallet" element={<ProtectedRoute><WalletPage /></ProtectedRoute>} />
+      <Route path="/help" element={<ProtectedRoute><Help /></ProtectedRoute>} />
+      <Route path="/about" element={<ProtectedRoute><About /></ProtectedRoute>} />
+      <Route path="/settings/profile" element={<ProtectedRoute><SettingsProfile /></ProtectedRoute>} />
+      <Route path="/settings/privacy" element={<ProtectedRoute><SettingsPrivacy /></ProtectedRoute>} />
+      <Route path="/settings/notifications" element={<ProtectedRoute><SettingsNotifications /></ProtectedRoute>} />
+      <Route path="/settings/security" element={<ProtectedRoute><SettingsSecurity /></ProtectedRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
       <Route path="*" element={<NotFound />} />

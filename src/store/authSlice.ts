@@ -2,6 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import api from '@/lib/api'
 // import { cancelAllRequests } from '@/lib/api'
 import { clearUserData } from './userDataSlice'
+import { releaseSessionLeadership, stopSessionHeartbeat } from '@/lib/authSession'
 
 export const loginUser = createAsyncThunk(
   'auth/user-login',
@@ -65,6 +66,8 @@ export const logoutUser = createAsyncThunk(
     } finally {
       dispatch(clearToken())
       dispatch(clearUserData())
+      releaseSessionLeadership()
+      stopSessionHeartbeat()
     }
   }
 )

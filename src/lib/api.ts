@@ -2,6 +2,7 @@ import axios from 'axios';
 import { store } from '@/store';
 import { setToken, clearToken, setUserName } from '@/store/authSlice';
 import { setUserData, clearUserData } from '@/store/userDataSlice';
+import { startSessionHeartbeat, stopSessionHeartbeat } from '@/lib/authSession';
 
 const API_BASE = 'http://localhost:8000';
 
@@ -44,6 +45,8 @@ async function refreshAccessToken() {
           store.dispatch(setUserData(null));
         }
 
+        startSessionHeartbeat(null);
+
         return token;
       }
       throw new Error('No access token returned from refresh');
@@ -51,6 +54,7 @@ async function refreshAccessToken() {
     .catch((err) => {
       store.dispatch(clearToken());
       store.dispatch(clearUserData());
+      stopSessionHeartbeat();
       throw err;
     })
     .finally(() => {

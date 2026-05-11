@@ -21,6 +21,7 @@ import { setUserData } from '@/store/userDataSlice';
 import type { AppDispatch } from '@/store';
 import { useFormik } from 'formik';
 import { loginValidationSchema } from '@/validations';
+import { startSessionHeartbeat } from '@/lib/authSession';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -64,8 +65,14 @@ const Login = () => {
         const fullName = payload?.full_name;
         const emailFromPayload = payload?.email;
         const mobileFromPayload = payload?.mobile;
+        const displayName =
+          (typeof fullName === 'string' && fullName.trim()) ||
+          (typeof emailFromPayload === 'string' && emailFromPayload.split('@')[0]) ||
+          email.trim().split('@')[0] ||
+          'User';
         if (token) {
           dispatch(setToken(token));
+          dispatch(setUserName(displayName));
           try {
             // Fetch user data after login
             const userResponse = await api.get('/api/auth/current-user-data', {
@@ -87,11 +94,11 @@ const Login = () => {
           );
 
           if (forceLogin) {
-            localStorage.setItem(
-              'auth:session-takeover',
-              JSON.stringify({ email: email.trim().toLowerCase(), at: Date.now() })
-            );
+            setShowSessionChoice(false);
+            setPendingCreds(null);
           }
+
+          startSessionHeartbeat(emailFromPayload || email.trim().toLowerCase());
 
           navigate('/');
         }
@@ -111,7 +118,7 @@ const Login = () => {
         } else {
           toast({
             title: 'Account Already Logged In',
-            description: 'This account is currently logged in on another device',
+            description: 'This account is currently logged in on another device or tab',
             variant: 'destructive',
           });
         }
@@ -221,7 +228,7 @@ const Login = () => {
             <DialogTitle>Session Already Active</DialogTitle>
             <DialogDescription>
               This account is already active in another tab or device.
-              You can continue there, or sign in here and end the other session.
+              Choose “Use Here” to take over this session on the current tab.
             </DialogDescription>
           </DialogHeader>
 
@@ -232,10 +239,6 @@ const Login = () => {
               onClick={() => {
                 setShowSessionChoice(false);
                 setPendingCreds(null);
-                toast({
-                  title: 'Continue In Other Tab',
-                  description: 'No changes made. You can keep using the existing active session.',
-                });
               }}
             >
               Use Other Tab
@@ -246,21 +249,20 @@ const Login = () => {
               disabled={!pendingCreds}
               onClick={async () => {
                 if (!pendingCreds) return;
-                setShowSessionChoice(false);
                 setIsLoading(true);
                 try {
                   await performLogin(pendingCreds.email, pendingCreds.password, true);
                 } finally {
                   setIsLoading(false);
-                  setPendingCreds(null);
                 }
               }}
             >
-              Login Here
+              Use Here
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

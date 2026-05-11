@@ -1,0 +1,9 @@
+docker compose up --build -d  ---> build all containers
+docker compose down -v  ----> stop all containers and volume
+docker compose down container_name -v  ---> stop specific container
+docker compose up container name -d  ---> start specific container 
+docker compose up container_name --build -d  ---> build specific container
+docker compose restart container_name ---> restart specific container
+docker compose logs -f container_name  ---> check logs for certain container
+docker ps ---> see all running containers
+docker ps -a ---> see all containers created(running or existing)
