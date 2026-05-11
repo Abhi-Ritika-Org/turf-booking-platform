@@ -4,11 +4,15 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
-import { tryRefreshSession } from '@/lib/api';
-import type { RootState } from '@/store';
+import { useDispatch, useSelector } from 'react-redux';
+import { cancelAllRequests, tryRefreshSession } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
+import { clearToken } from '@/store/authSlice';
+import { clearUserData } from '@/store/userDataSlice';
+import type { AppDispatch, RootState } from '@/store';
 import Index from "./pages/Index";
 import Login from "./pages/Login";
+import Profile from "./pages/Profile.tsx";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 
@@ -79,10 +83,37 @@ const PublicRoute = ({ children }: { children: JSX.Element }) => {
 };
 
 const RouterWithCancel = () => {
+  const dispatch = useDispatch<AppDispatch>();
+  const { toast } = useToast();
+  const location = useLocation();
+
+  useEffect(() => {
+    cancelAllRequests();
+  }, [location]);
+
+  useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== 'auth:session-takeover' || !event.newValue) return;
+
+      dispatch(clearToken());
+      dispatch(clearUserData());
+      cancelAllRequests();
+      toast({
+        title: 'Logged Out',
+        description: 'Session moved to another tab/device. Please login again to continue.',
+        variant: 'destructive',
+      });
+      window.location.href = '/login';
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [dispatch, toast]);
 
   return (
     <Routes>
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
       <Route path="*" element={<NotFound />} />

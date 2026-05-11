@@ -37,24 +37,15 @@ const Index = () => {
     setError(null);
 
     try {
-      const response = await api.post('api/turfs/turf-list', {
-        offset: nextPage - 1,
-        limit: nextLimit,
-      });
-      const turfList = response?.data?.data ?? [];
-      const list = Array.isArray(turfList) ? turfList : [];
-      setTurfs(list);
-      setLastPageCount(list.length);
-
-      const total_turfs = response?.data?.total;
-      setTotalCount(total_turfs);
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Please try again in a moment.');
-      setTurfs([]);
-      setLastPageCount(0);
-    } finally {
-      setIsLoading(false);
+      const res = await api.get('/api/bookings', { params: { from: today } });
+      const allBookings = res.data || [];
+      setBookings(allBookings);
+      setAllBookedSlots(allBookings.map((booking: any) => ({ date: booking.date, time_slot: booking.time_slot })));
+    } catch (err) {
+      // ignore for now
     }
+
+    setIsLoading(false);
   };
 
   useEffect(() => {

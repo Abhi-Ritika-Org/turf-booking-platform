@@ -33,7 +33,8 @@ export const BookingForm = ({ onBookingSuccess, bookedSlots }: BookingFormProps)
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const { toast } = useToast();
-
+  const now = new Date();
+  const today = now.toISOString().split("T")[0];
   const isSlotBooked = (slot: string) => {
     return bookedSlots.some(
       (booking) => booking.date === date && booking.time_slot === slot
@@ -64,7 +65,7 @@ export const BookingForm = ({ onBookingSuccess, bookedSlots }: BookingFormProps)
     setIsLoading(true);
 
     try {
-      await api.post('/api/bookings', {
+      await api.post('/api/bookings/create', {
         name: name.trim(),
         phone: phone.trim(),
         date,
@@ -91,8 +92,6 @@ export const BookingForm = ({ onBookingSuccess, bookedSlots }: BookingFormProps)
       onBookingSuccess();
     }, 2500);
   };
-
-  const today = new Date().toISOString().split("T")[0];
 
   if (showSuccess) {
     return (

@@ -1,7 +1,6 @@
-import { Volleyball, LogOut } from "lucide-react";
-import { useDispatch } from "react-redux";
-import { useAppSelector } from "@/hooks/useAppSelector";
-import { useNavigate } from "react-router-dom";
+import { Volleyball, LogOut, UserCircle2, House } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import type { AppDispatch, RootState } from "@/store";
 import { logoutUser } from "@/store/authSlice";
@@ -9,9 +8,11 @@ import { logoutUser } from "@/store/authSlice";
 export const Header = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const userData = useAppSelector((state) => state.userData);
-  const fullName = typeof userData?.full_name === 'string' ? userData.full_name : '';
-  const firstName = fullName.trim().split(/\s+/)[0] || 'User';
+  const location = useLocation();
+  const userName = useSelector((state: RootState) => state.auth.userName);
+  const firstName = userName?.trim().split(/\s+/)[0] || 'User';
+  const isHomePage = location.pathname === '/';
+  const isProfilePage = location.pathname === '/profile';
 
   const handleLogout = async () => {
     await dispatch(logoutUser());
@@ -34,6 +35,26 @@ export const Header = () => {
             <span className="text-sm font-medium text-foreground/90">
               Welcome {firstName}
             </span>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/')}
+              disabled={isHomePage}
+              className="flex items-center gap-2"
+            >
+              <House className="h-4 w-4" />
+              Home
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/profile')}
+              disabled={isProfilePage}
+              className="flex items-center gap-2"
+            >
+              <UserCircle2 className="h-4 w-4" />
+              Profile
+            </Button>
             <Button
               variant="outline"
               size="sm"

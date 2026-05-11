@@ -2,7 +2,7 @@ import logging
 import os
 from dotenv import load_dotenv
 from flask import g, make_response, request
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
 
 load_dotenv()
 
@@ -54,7 +54,16 @@ def configure_middleware(app):
 
         try:
             verify_jwt_in_request(optional=False, locations=['headers'])
+            jwt_data = get_jwt()
             g.current_user_id = get_jwt_identity()
+
+            active_session = app.config['REDIS_CLIENT'].get(f"login_session:{g.current_user_id}")
+            token_session_id = jwt_data.get('session_id')
+            # Backward compatibility: older sessions stored "active" in Redis.
+            is_legacy_session = active_session == 'active'
+            if (not active_session) or ((not is_legacy_session) and (active_session != token_session_id)):
+                return make_response({'status': 401, 'error': 'Session expired due to login from another tab/device'}, 401)
+
             request.environ['current_user_id'] = g.current_user_id
         except Exception:
             logging.debug("Access token validation failed", exc_info=True)

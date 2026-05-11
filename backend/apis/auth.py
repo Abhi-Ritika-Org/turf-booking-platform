@@ -114,6 +114,7 @@ class UserLogin(Resource):
             data = request.get_json() or {}
             email = str(data.get('email', '')).strip().lower()
             password = data.get('password')
+            force_login = bool(data.get('force_login', False))
 
             if not email or not password:
                 return make_response({'status': 400, 'error': 'Email and password are required'}, 400)
@@ -133,23 +134,34 @@ class UserLogin(Resource):
             active_session = self.redis_client.get(f"login_session:{user_id}")
             logging.info(f"Active session check for {user_id}: {active_session}")
 
-            if active_session:
-                # Active session exists
+            if active_session and not force_login:
                 logging.info(f"Multiple Device Login Conflict for user {user_id}")
                 return make_response({
                     'status': 409,
                     'error': 'Account already logged in on another device',
+                    'allow_force': True,
                 }, 409)
 
-            access_token = create_access_token(identity=user_id)
-            refresh_token = create_refresh_token(identity=user_id)
+            session_id = shortuuid.ShortUUID().random(length=12)
+
+            if active_session and force_login:
+                logging.info(f"Session takeover requested for user {user_id}")
+
+            access_token = create_access_token(identity=user_id, additional_claims={'session_id': session_id})
+            refresh_token = create_refresh_token(identity=user_id, additional_claims={'session_id': session_id})
             refresh_expires = self.jwt_refresh_token_expires
             max_age = int(refresh_expires.total_seconds())
 
-            resp = make_response(jsonify({'status': 200, 'access_token': access_token}), 200)
+            resp = make_response(jsonify({
+                'status': 200,
+                'access_token': access_token,
+                'full_name': user.get('full_name'),
+                'email': user.get('email'),
+                'mobile': user.get('mobile'),
+            }), 200)
 
             set_refresh_cookies(resp, refresh_token, max_age=max_age)
-            self.redis_client.setex(f"login_session:{user_id}", max_age, 'active')
+            self.redis_client.setex(f"login_session:{user_id}", max_age, session_id)
             return resp
 
         except Exception:
@@ -167,10 +179,20 @@ class RefreshAccessToken(Resource):
             jwt_data = get_jwt()
             user_id = get_jwt_identity()
             refresh_jti = jwt_data.get('jti')
+            token_session_id = jwt_data.get('session_id')
             if not refresh_jti:
                 return make_response({'status': 401, 'error': 'Refresh token invalid'}, 401)
 
-            new_access = create_access_token(identity=user_id)
+            active_session = self.redis_client.get(f"login_session:{user_id}")
+            if not active_session:
+                return make_response({'status': 401, 'error': 'Session expired'}, 401)
+
+            is_legacy_session = active_session == 'active'
+            if (not is_legacy_session) and (active_session != token_session_id):
+                return make_response({'status': 401, 'error': 'Session moved to another tab/device'}, 401)
+
+            claims = {'session_id': token_session_id} if token_session_id else None
+            new_access = create_access_token(identity=user_id, additional_claims=claims)
             return make_response({'status': 200, 'access_token': new_access}, 200)
         except Exception:
             logging.debug('Refresh token invalid or expired', exc_info=True)
@@ -187,12 +209,16 @@ class UserLogout(Resource):
             jwt_data = get_jwt()
             user_id = get_jwt_identity()
             refresh_jti = jwt_data.get('jti')
+            token_session_id = jwt_data.get('session_id')
             if not refresh_jti:
                 return make_response({'status': 401, 'error': 'Refresh token invalid'}, 401)
 
-            # Delete refresh token
             redis_key = f"login_session:{user_id}"
-            self.redis_client.delete(redis_key)
+            active_session = self.redis_client.get(redis_key)
+            is_legacy_session = active_session == 'active'
+
+            if active_session and ((not is_legacy_session and active_session == token_session_id) or is_legacy_session):
+                self.redis_client.delete(redis_key)
 
             resp = make_response({'status': 200, 'message': 'Logged out successfully'}, 200)
             unset_refresh_cookies(resp)

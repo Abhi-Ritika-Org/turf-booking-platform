@@ -2,6 +2,14 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,6 +24,8 @@ import { loginValidationSchema } from '@/validations';
 
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [showSessionChoice, setShowSessionChoice] = useState(false);
+  const [pendingCreds, setPendingCreds] = useState<{ email: string; password: string } | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const dispatch = useDispatch<AppDispatch>();
@@ -37,11 +47,12 @@ const Login = () => {
   /**
    * Perform login request
    */
-  const performLogin = async (email: string, password: string) => {
+  const performLogin = async (email: string, password: string, forceLogin = false) => {
     try {
       const response = await api.post('/api/auth/user-login', {
         email: email.trim(),
         password,
+        force_login: forceLogin,
       });
 
       const payload = response.data;
@@ -51,6 +62,8 @@ const Login = () => {
       if (status === 200) {
         const token = payload?.access_token;
         const fullName = payload?.full_name;
+        const emailFromPayload = payload?.email;
+        const mobileFromPayload = payload?.mobile;
         if (token) {
           dispatch(setToken(token));
           try {
@@ -64,6 +77,22 @@ const Login = () => {
           } catch (error) {
             dispatch(setUserData(null));
           }
+
+          dispatch(
+            setUserData({
+              full_name: fullName || null,
+              email: emailFromPayload || null,
+              mobile: mobileFromPayload || null,
+            })
+          );
+
+          if (forceLogin) {
+            localStorage.setItem(
+              'auth:session-takeover',
+              JSON.stringify({ email: email.trim().toLowerCase(), at: Date.now() })
+            );
+          }
+
           navigate('/');
         }
       }
@@ -75,11 +104,17 @@ const Login = () => {
     } catch (error: any) {
       const status = error?.response?.status;
       if (status === 409) {
-        toast({
-          title: 'Account Already Logged In',
-          description: 'This account is currently logged in on another device',
-          variant: 'destructive',
-        });
+        const allowForce = Boolean(error?.response?.data?.allow_force);
+        if (allowForce && !forceLogin) {
+          setPendingCreds({ email, password });
+          setShowSessionChoice(true);
+        } else {
+          toast({
+            title: 'Account Already Logged In',
+            description: 'This account is currently logged in on another device',
+            variant: 'destructive',
+          });
+        }
       } else {
         const errMsg = error?.response?.data?.error || formatError(error);
         toast({ title: 'Login Failed', description: errMsg, variant: 'destructive' });
@@ -179,6 +214,53 @@ const Login = () => {
           </form>
         </CardContent>
       </Card>
+
+      <Dialog open={showSessionChoice} onOpenChange={setShowSessionChoice}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Session Already Active</DialogTitle>
+            <DialogDescription>
+              This account is already active in another tab or device.
+              You can continue there, or sign in here and end the other session.
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setShowSessionChoice(false);
+                setPendingCreds(null);
+                toast({
+                  title: 'Continue In Other Tab',
+                  description: 'No changes made. You can keep using the existing active session.',
+                });
+              }}
+            >
+              Use Other Tab
+            </Button>
+
+            <Button
+              type="button"
+              disabled={!pendingCreds}
+              onClick={async () => {
+                if (!pendingCreds) return;
+                setShowSessionChoice(false);
+                setIsLoading(true);
+                try {
+                  await performLogin(pendingCreds.email, pendingCreds.password, true);
+                } finally {
+                  setIsLoading(false);
+                  setPendingCreds(null);
+                }
+              }}
+            >
+              Login Here
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
