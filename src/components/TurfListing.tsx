@@ -9,7 +9,7 @@ interface TurfOwner {
 
 interface Turf {
   id?: string;
-  thumbnail?: string;
+  thumbnail_url?: string;
   name?: string;
   location?: string;
   avg_rating?: number;
@@ -90,9 +90,9 @@ export const BookingsList = ({ turfs, isLoading, error }: BookingsListProps) => 
             key={key}
             className="overflow-hidden rounded-2xl turf-card-shadow transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:turf-card-hover"
           >
-            {turf.thumbnail ? (
+            {turf.thumbnail_url ? (
               <img
-                src={turf.thumbnail}
+                src={turf.thumbnail_url}
                 alt={turf.name ?? "Turf thumbnail"}
                 className="h-44 w-full object-cover"
                 loading="lazy"

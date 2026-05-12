@@ -13,7 +13,7 @@ interface TurfOwner {
 
 interface Turf {
   id?: string;
-  thumbnail?: string;
+  thumbnail_url?: string;
   name?: string;
   location?: string;
   avg_rating?: number;
