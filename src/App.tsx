@@ -8,6 +8,7 @@ import { useSelector } from 'react-redux';
 import { tryRefreshSession } from '@/lib/api';
 import type { RootState } from '@/store';
 import Index from "./pages/Index";
+import TurfDetails from "./pages/TurfDetails";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -83,6 +84,7 @@ const RouterWithCancel = () => {
   return (
     <Routes>
       <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+      <Route path="/turfs/:turfId" element={<ProtectedRoute><TurfDetails /></ProtectedRoute>} />
       <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
       <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
       <Route path="*" element={<NotFound />} />

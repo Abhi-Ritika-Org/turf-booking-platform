@@ -1,6 +1,9 @@
-import { MapPin, Phone, Star, User } from "lucide-react";
+import { MapPin, Phone, Star, User, ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { getLocalDateString } from "@/lib/turfBooking";
 
 interface TurfOwner {
   name: string;
@@ -19,6 +22,34 @@ interface Turf {
   amenities?: string[];
   owner_contact?: TurfOwner;
 }
+
+const getDetailState = (turf: Turf) => ({
+  turf: {
+    id: turf.id,
+    name: turf.name,
+    location: turf.location,
+    avg_rating: turf.avg_rating,
+    total_reviews: turf.total_reviews,
+    price_per_hour: turf.price_per_hour,
+    sports: turf.sports,
+    amenities: turf.amenities,
+    images: turf.thumbnail_url ? [turf.thumbnail_url] : [],
+    thumbnail: turf.thumbnail_url,
+    owner_contact: turf.owner_contact,
+    owner: turf.owner_contact,
+  },
+});
+
+const getDetailTarget = (turfId: string | undefined, turf: Turf) => {
+  const key = turfId ?? turf.name ?? 'turf';
+  // const date = getLocalDateString();
+  const date = "2026-04-19"; // hardcoded date for testing purposes, replace with above line for dynamic date
+
+  return {
+    pathname: `/turfs/${key}`,
+    search: `?date=${date}`,
+  };
+};
 
 interface BookingsListProps {
   turfs: Turf[];
@@ -90,24 +121,28 @@ export const BookingsList = ({ turfs, isLoading, error }: BookingsListProps) => 
             key={key}
             className="overflow-hidden rounded-2xl turf-card-shadow transition-all duration-300 hover:-translate-y-1 hover:scale-[1.01] hover:turf-card-hover"
           >
-            {turf.thumbnail_url ? (
-              <img
-                src={turf.thumbnail_url}
-                alt={turf.name ?? "Turf thumbnail"}
-                className="h-44 w-full object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="h-44 w-full turf-gradient flex items-center justify-center">
-                <p className="text-primary-foreground/80 text-sm">No image available</p>
-              </div>
-            )}
+            <Link to={getDetailTarget(turf.id, turf)} state={getDetailState(turf)} className="block">
+              {turf.thumbnail_url ? (
+                <img
+                  src={turf.thumbnail_url}
+                  alt={turf.name ?? "Turf thumbnail"}
+                  className="h-44 w-full object-cover transition-transform duration-500 hover:scale-105"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-44 w-full items-center justify-center bg-gradient-to-br from-primary/15 via-primary/5 to-emerald-50">
+                  <p className="text-sm text-primary/70">No image available</p>
+                </div>
+              )}
+            </Link>
 
             <CardContent className="p-4 space-y-4">
               <div>
-                <h3 className="font-display text-lg font-semibold text-foreground line-clamp-1">
-                  {turf.name ?? "Unnamed Turf"}
-                </h3>
+                <Link to={getDetailTarget(turf.id, turf)} state={getDetailState(turf)} className="group inline-block max-w-full">
+                  <h3 className="font-display text-lg font-semibold text-foreground line-clamp-1 transition-colors group-hover:text-primary">
+                    {turf.name ?? "Unnamed Turf"}
+                  </h3>
+                </Link>
                 <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
                   <MapPin className="h-4 w-4" />
                   <span className="line-clamp-1">{turf.location ?? "Location unavailable"}</span>
@@ -166,6 +201,13 @@ export const BookingsList = ({ turfs, isLoading, error }: BookingsListProps) => 
                   </p>
                 </div>
               </div>
+
+              <Button asChild className="w-full rounded-xl">
+                <Link to={getDetailTarget(turf.id, turf)} state={getDetailState(turf)}>
+                  View details
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         );
