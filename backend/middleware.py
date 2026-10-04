@@ -24,6 +24,7 @@ PUBLIC_PATHS = {
     '/api/auth/user-login',
     '/api/auth/refresh',
     '/api/auth/user-signup',
+    '/api/webhook/razorpay',  # called by Razorpay; authenticated by signature, not JWT
 }
 
 

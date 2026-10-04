@@ -3,7 +3,7 @@ import { store } from '@/store';
 import { setToken, clearToken, setUserName } from '@/store/authSlice';
 import { setUserData, clearUserData } from '@/store/userDataSlice';
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = (typeof process !== 'undefined' && process?.env?.API_BASE) || 'http://localhost:8000';
 
 const instance = axios.create({
   baseURL: API_BASE,
