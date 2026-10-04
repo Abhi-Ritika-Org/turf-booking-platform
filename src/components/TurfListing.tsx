@@ -42,8 +42,8 @@ const getDetailState = (turf: Turf) => ({
 
 const getDetailTarget = (turfId: string | undefined, turf: Turf) => {
   const key = turfId ?? turf.name ?? 'turf';
-  // const date = getLocalDateString();
-  const date = "2026-04-19"; // hardcoded date for testing purposes, replace with above line for dynamic date
+  const date = getLocalDateString();
+  // const date = "2026-04-19"; // hardcoded date for testing purposes, replace with above line for dynamic date
 
   return {
     pathname: `/turfs/${key}`,

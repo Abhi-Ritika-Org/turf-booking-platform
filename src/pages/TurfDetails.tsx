@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -29,6 +29,8 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isAxiosError } from "axios";
+import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
   BookingSlot,
@@ -55,6 +57,29 @@ type TurfLocationState = {
     };
   };
   available_slots?: BookingSlot[];
+};
+
+const STATUS_POLL_INTERVAL_MS = 3000;
+const STATUS_POLL_MAX_ATTEMPTS = 20;
+
+type BookingApiResponse = {
+  status?: number | boolean | string;
+  message?: string;
+  amount?: number;
+  platform_fee?: number;
+  received_at?: string;
+  error?: string;
+  booking_id?: string;
+  order_id?: string;
+  data?: BookingApiResponse;
+  razorpay_api_key?: string;
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (isAxiosError<{ error?: string; message?: string }>(error)) {
+    return error.response?.data?.error ?? error.response?.data?.message ?? fallback;
+  }
+  return fallback;
 };
 
 
@@ -215,12 +240,18 @@ const BookingSummaryCard = ({
   totals,
   selectedRangeLabel,
   availableCount,
+  isBooking,
+  bookingResponse,
+  onContinueBooking,
 }: {
   turf: TurfDetailsData;
   selectedSlots: BookingSlot[];
   totals: BookingTotals;
   selectedRangeLabel: string;
   availableCount: number;
+  isBooking: boolean;
+  bookingResponse: BookingApiResponse | null;
+  onContinueBooking: () => void;
 }) => (
   <Card className="rounded-3xl border-border/70 bg-card/95 shadow-[0_24px_60px_-32px_hsl(var(--foreground))/0.24] backdrop-blur">
     <CardHeader className="space-y-4 border-b border-border/60 bg-gradient-to-br from-primary/8 via-background to-background">
@@ -291,10 +322,25 @@ const BookingSummaryCard = ({
         <div className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">Ready to book</div>
       </div>
 
-      <Button className="w-full rounded-2xl py-6 text-base font-semibold shadow-lg shadow-primary/20" disabled={selectedSlots.length === 0}>
-        Continue booking
+      <Button
+        className="w-full rounded-2xl py-6 text-base font-semibold shadow-lg shadow-primary/20"
+        disabled={selectedSlots.length === 0 || isBooking}
+        onClick={onContinueBooking}
+      >
+        {isBooking ? "Booking..." : "Continue booking"}
         <ChevronRight className="h-4 w-4" />
       </Button>
+
+      {bookingResponse && (
+        <div className="rounded-2xl border border-border/70 bg-muted/30 p-4 text-sm">
+          <p className="font-semibold text-foreground">Booking response</p>
+          {bookingResponse.message && <p className="mt-1 text-muted-foreground">{bookingResponse.message}</p>}
+          {bookingResponse.amount !== undefined && <p className="mt-2 text-foreground">Amount: Rs. {bookingResponse.amount.toLocaleString("en-IN")}</p>}
+          {bookingResponse.platform_fee !== undefined && <p className="text-foreground">Platform fee: Rs. {bookingResponse.platform_fee.toLocaleString("en-IN")}</p>}
+          {bookingResponse.received_at && <p className="text-muted-foreground">Received at: {bookingResponse.received_at}</p>}
+          {bookingResponse.error && <p className="text-destructive">Error: {bookingResponse.error}</p>}
+        </div>
+      )}
 
       <p className="text-center text-xs text-muted-foreground">
         Secure checkout, instant confirmation, and support from {turf.owner_contact.name}.
@@ -312,9 +358,20 @@ const TurfDetails = () => {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [rangeStartIndex, setRangeStartIndex] = useState<number | null>(null);
   const [rangeEndIndex, setRangeEndIndex] = useState<number | null>(null);
-  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
-  const date = searchParams.get("date") ?? getLocalDateString();
+  const date = getLocalDateString(); // default to today's date, can be modified to allow user selection in the future
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingResponse, setBookingResponse] = useState<BookingApiResponse | null>(null);
+  const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
+  const isBookingBusy = isBooking || isConfirmingPayment;
+  const isMountedRef = useRef(true);
   const turfDetailsState = useSelector((reduxState: RootState) => reduxState.turfDetails);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!params.turfId) return;
@@ -443,6 +500,225 @@ const TurfDetails = () => {
       title: isWishlisted ? "Removed from wishlist" : "Saved to wishlist",
       description: isWishlisted ? "You can always come back to it later." : "This turf is now on your shortlist.",
     });
+  };
+
+  const handleBookingConfirmed = (booking: BookingApiResponse) => {
+    setBookingResponse({ ...booking, message: "Your booking is confirmed." });
+    setRangeStartIndex(null);
+    setRangeEndIndex(null);
+    if (params.turfId) {
+      dispatch(fetchTurfDetails({ turfId: params.turfId, date }));
+    }
+    toast({
+      title: "Payment verified",
+      description: "Your booking is confirmed.",
+    });
+  };
+
+  // Fallback when verify-payment fails: the backend (verify call or Razorpay webhook) is the source of truth,
+  // so poll the booking status until it settles or we give up.
+  const waitForBookingConfirmation = async (bookingId: string) => {
+    setIsConfirmingPayment(true);
+    setBookingResponse({ message: "Confirming your payment..." });
+
+    try {
+      for (let attempt = 0; attempt < STATUS_POLL_MAX_ATTEMPTS; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, STATUS_POLL_INTERVAL_MS));
+        if (!isMountedRef.current) return;
+
+        try {
+          const response = await api.get(`/api/bookings/booking-details/${bookingId}`);
+          const booking = response.data?.data as BookingApiResponse | undefined;
+          if (!isMountedRef.current) return;
+
+          if (booking?.status === "confirmed") {
+            handleBookingConfirmed(booking);
+            return;
+          }
+          if (typeof booking?.status === "string" && booking.status !== "payment_pending") {
+            setBookingResponse({ ...booking, error: `Booking ${booking.status.replace(/_/g, " ")}. Please try booking again.` });
+            toast({
+              title: "Booking not confirmed",
+              description: `Booking status: ${booking.status.replace(/_/g, " ")}.`,
+              variant: "destructive",
+            });
+            return;
+          }
+        } catch (statusError) {
+          // Transient failure; keep polling.
+          console.error("[Booking] booking-details poll failed", statusError);
+        }
+      }
+
+      setBookingResponse({ message: "We'll update your booking shortly. Check My bookings for the latest status." });
+      toast({
+        title: "Payment is being confirmed",
+        description: "We'll update your booking shortly.",
+      });
+    } finally {
+      if (isMountedRef.current) setIsConfirmingPayment(false);
+    }
+  };
+
+  const handleContinueBooking = async () => {
+    if (!pageResponse?.turf.id || selectedSlots.length === 0) {
+      toast({
+        title: "Select a slot block",
+        description: "Choose a continuous slot range before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check checkout can open before creating the booking; otherwise an unpaid booking would hold the slot.
+    const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+    if (!window.Razorpay || !razorpayKeyId) {
+      console.error("[Booking] Razorpay checkout unavailable before booking", {
+        hasRazorpayGlobal: Boolean(window.Razorpay),
+        razorpayKeyPresent: Boolean(razorpayKeyId),
+      });
+      toast({
+        title: "Payment unavailable",
+        description: "Payment checkout could not be loaded. Disable any ad blocker or refresh the page and try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const bookingPayload = {
+      booking_date: date,
+      booking_start_time: selectedSlots[0].start_time,
+      booking_end_time: selectedSlots[selectedSlots.length - 1].end_time,
+      turf_id: pageResponse.turf.id,
+    };
+
+    setIsBooking(true);
+    setBookingResponse(null);
+
+    try {
+      const response = await api.post("/api/bookings/create-booking", bookingPayload);
+      const payload = response.data;
+      const bookingData = payload?.data ?? payload;
+      const isSuccess = payload?.status === true || response.status === 200;
+
+      setBookingResponse(bookingData ?? {});
+
+      if (!isSuccess) {
+        toast({
+          title: "Booking response received",
+          description: bookingData?.message ?? "The server returned a booking response.",
+        });
+        return;
+      }
+
+      const razorpayKey = bookingData?.razorpay_api_key ?? razorpayKeyId;
+      const razorpayOrderId = bookingData?.razorpay_order_id ?? bookingData?.order_id;
+
+      console.debug("[Booking] create-booking response", {
+        payload,
+        bookingData,
+        razorpayKeyPresent: Boolean(razorpayKey),
+        razorpayOrderId,
+        hasRazorpayGlobal: Boolean(window.Razorpay),
+      });
+
+      if (!razorpayKey || !razorpayOrderId || !window.Razorpay) {
+        console.error("[Booking] Razorpay checkout cannot open", {
+          razorpayKeyPresent: Boolean(razorpayKey),
+          razorpayOrderId,
+          hasRazorpayGlobal: Boolean(window.Razorpay),
+          bookingData,
+        });
+        toast({
+          title: "Razorpay unavailable",
+          description: "Booking was created, but payment checkout could not be opened.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const razorpayOptions = {
+        key: razorpayKey,
+        amount: typeof bookingData?.amount === "number" ? Math.round(bookingData.amount * 100) : undefined,
+        currency: "INR",
+        name: process.env.APP_NAME ?? "TurfBook",
+        description: `Booking for ${pageResponse.turf.name}`,
+        order_id: razorpayOrderId,
+        handler: async (razorpayResponse: {
+          razorpay_payment_id: string;
+          razorpay_order_id: string;
+          razorpay_signature: string;
+        }) => {
+          const bookingId = bookingData?.booking_id;
+          try {
+            console.debug("[Booking] Razorpay success callback", razorpayResponse);
+            const verifyResponse = await api.post("/api/bookings/verify-payment", {
+              booking_id: bookingId,
+              razorpay_payment_id: razorpayResponse.razorpay_payment_id,
+              razorpay_order_id: razorpayResponse.razorpay_order_id,
+              razorpay_signature: razorpayResponse.razorpay_signature,
+            });
+            const verifyPayload = verifyResponse.data;
+
+            console.debug("[Booking] verify-payment response", verifyPayload);
+            handleBookingConfirmed(verifyPayload?.data ?? verifyPayload);
+          } catch (verifyError) {
+            const verifyMessage = getApiErrorMessage(verifyError, "Payment verification failed");
+            console.error("[Booking] verify-payment failed", verifyError);
+            if (bookingId) {
+              await waitForBookingConfirmation(bookingId);
+              return;
+            }
+            setBookingResponse({ error: verifyMessage });
+            toast({
+              title: "Payment verification failed",
+              description: verifyMessage,
+              variant: "destructive",
+            });
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            toast({
+              title: "Payment pending",
+              description: "Complete the payment to confirm your booking.",
+            });
+          },
+        },
+      };
+
+      console.debug("[Booking] opening Razorpay checkout", razorpayOptions);
+      const razorpay = new window.Razorpay(razorpayOptions);
+      try {
+        razorpay.open();
+      } catch (checkoutError) {
+        console.error("[Booking] Razorpay open() threw an error", checkoutError, razorpayOptions);
+        throw checkoutError;
+      }
+
+      toast({
+        title: bookingData?.message ?? "Booking created successfully",
+        description: bookingData?.amount ? `Amount: Rs. ${bookingData.amount.toLocaleString("en-IN")}` : "Razorpay checkout has been opened.",
+      });
+    } catch (error) {
+      const errorMessage = getApiErrorMessage(error, "Failed to create booking");
+      if (isAxiosError(error) && error.response?.status === 409) {
+        // Slot was taken since the page loaded: refresh availability and clear the stale selection.
+        setRangeStartIndex(null);
+        setRangeEndIndex(null);
+        if (params.turfId) {
+          dispatch(fetchTurfDetails({ turfId: params.turfId, date }));
+        }
+      }
+      setBookingResponse({ error: errorMessage });
+      toast({
+        title: "Booking failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   const heroRating = (pageResponse?.turf.avg_rating ?? 0).toFixed(1);
@@ -727,6 +1003,9 @@ const TurfDetails = () => {
                       totals={totals}
                       selectedRangeLabel={selectedRangeLabel}
                       availableCount={availableCount}
+                      isBooking={isBookingBusy}
+                      bookingResponse={bookingResponse}
+                      onContinueBooking={handleContinueBooking}
                     />
                   </div>
 
@@ -808,6 +1087,9 @@ const TurfDetails = () => {
                   totals={totals}
                   selectedRangeLabel={selectedRangeLabel}
                   availableCount={availableCount}
+                  isBooking={isBookingBusy}
+                  bookingResponse={bookingResponse}
+                  onContinueBooking={handleContinueBooking}
                 />
               </div>
             </motion.div>
@@ -827,8 +1109,8 @@ const TurfDetails = () => {
             <p className="text-xs text-muted-foreground">Total</p>
             <p className="text-base font-bold text-foreground">{formatCurrency(totals.grandTotal)}</p>
           </div>
-          <Button size="sm" className="rounded-full px-4" disabled={selectedSlots.length === 0}>
-            Continue
+          <Button size="sm" className="rounded-full px-4" disabled={selectedSlots.length === 0 || isBookingBusy} onClick={handleContinueBooking}>
+            {isBookingBusy ? "Booking..." : "Continue"}
           </Button>
         </div>
       </div>

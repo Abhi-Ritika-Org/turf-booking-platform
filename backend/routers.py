@@ -3,10 +3,13 @@ import traceback
 from apis.auth import RefreshAccessToken, UserLogin, UserLogout, UserSignup, CurrentUserData
 # from backend.apis.turfs import CreateBooking, ListBookings
 from apis.turfs import TurfList, TurfDetails
+from apis.bookings import CreateBooking, VerifyPayment, BookingDetails
+from apis.webhooks import RazorpayWebhook
 
 AUTH_PATH = "auth"
 BOOKINGS_PATH = "bookings"
 TURFS_PATH = "turfs"
+WEBHOOK_PATH = "webhook"
 
 def create_routes(api):
     try:
@@ -18,13 +21,18 @@ def create_routes(api):
         api.add_resource(CurrentUserData, f"{AUTH_PATH}/current-user-data")
         
         # Bookings routes
-        # api.add_resource(CreateBooking, f"{BOOKINGS_PATH}/create")
+        api.add_resource(CreateBooking, f"{BOOKINGS_PATH}/create-booking")
+        api.add_resource(VerifyPayment, f"{BOOKINGS_PATH}/verify-payment")
+        api.add_resource(BookingDetails, f"{BOOKINGS_PATH}/booking-details/<string:booking_id>")
         # api.add_resource(ListBookings, f"{BOOKINGS_PATH}/list")
 
         #Turf routes
         # api.add_resource(CreateTurf, f"{TURFS_PATH}/create-turf")
         api.add_resource(TurfList, f"{TURFS_PATH}/turf-list")
         api.add_resource(TurfDetails, f"{TURFS_PATH}/turf-details/<string:turf_id>")
+
+        # Webhook routes (called by external services, not the frontend)
+        api.add_resource(RazorpayWebhook, f"{WEBHOOK_PATH}/razorpay")
 
     except Exception:
         print("Error in routes")

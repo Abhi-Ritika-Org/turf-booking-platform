@@ -61,7 +61,7 @@ export const getLocalDateString = (date = new Date()) => {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
 
-  return `${year}-${month}-${day}`;
+  return `${day}-${month}-${year}`;
 };
 
 export const calculateDurationHours = (selectedSlotCount: number, slotMinutes = 30) => {
@@ -72,7 +72,7 @@ export const calculateBookingTotals = (
   pricePerHour: number,
   selectedSlotCount: number,
   platformFeeRate = 0.03,
-  minimumPlatformFee = 19,
+  minimumPlatformFee = 9,
 ): BookingTotals => {
   const totalHours = calculateDurationHours(selectedSlotCount);
   const subtotal = Math.round(totalHours * pricePerHour);
