@@ -1,4 +1,5 @@
 import logging
+
 from flask import current_app as app
 from flask import jsonify, make_response, request
 from flask_restful import Resource
@@ -90,7 +91,7 @@ class TurfDetails(Resource):
         
     def get_date_range(self, date_str):
         try:
-            start_time = datetime.strptime(date_str, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            start_time = datetime.strptime(date_str, "%d-%m-%Y").replace(tzinfo=timezone.utc)
             
             end_time = start_time + timedelta(days=1)
             print(f"Start time: {start_time}, End time: {end_time}")
@@ -105,7 +106,7 @@ class TurfDetails(Resource):
         
     def get_bookings_for_turf(self, turf_id, start_time, end_time):
         try:
-            bookings = list(self.mongo_db['bookings'].find({'turf_id': turf_id,'start_time': {'$lt': end_time}, 'end_time': {'$gte': start_time}, 'status': 'confirmed'}, {'_id': 0}))
+            bookings = list(self.mongo_db['bookings'].find({'turf_id': turf_id,'start_time': {'$lt': end_time}, 'end_time': {'$gt': start_time}, 'status': 'confirmed'}, {'_id': 0}))
             print(f"Bookings for turf_id {turf_id} between {start_time} and {end_time}: {bookings}")
             return bookings
         except Exception as e:
@@ -130,8 +131,8 @@ class TurfDetails(Resource):
             for slot in slots:
                 slot['end_time'] = slot['end_time'].strftime("%H:%M")
                 slot['start_time'] = slot['start_time'].strftime("%H:%M")
-            print(f"Available slots for the time range {start_time} to {end_time}: {slots}")
             return slots
         except Exception as e:
             logging.exception("Error in get_available_slots", exc_info=True)
             raise ValueError(f"Error fetching slots: {e}")
+        
