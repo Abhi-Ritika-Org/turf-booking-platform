@@ -1,10 +1,13 @@
-from importlib import reload
-from flask import Flask
-from flask_jwt_extended import JWTManager
-from flask_restful import Api
-from config import APP_CONFIG
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from config import MongoClient, RedisClient
 from middleware import configure_middleware
-from routers import create_routes
+from routers import create_api_router
 
 ##### Logging setup
 import logging
@@ -21,35 +24,57 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("boto3").setLevel(logging.WARNING)
 logging.getLogger("botocore").setLevel(logging.WARNING)
 
-def create_app():
-    app = Flask(__name__)
+BASE_PATH = '/api'
 
-    # Attach Gunicorn logger to Flask app
-    gunicorn_logger = logging.getLogger("gunicorn.error")
-    if gunicorn_logger.handlers:
-        app.logger.handlers = gunicorn_logger.handlers
-        app.logger.setLevel(gunicorn_logger.level)
-    else:
-        app.logger.setLevel(logging.DEBUG)
 
-    app.config.from_mapping(APP_CONFIG)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logging.info("Starting TurfBook API")
+    yield
+    # Close the shared clients created in config.py.
+    try:
+        MongoClient.close()
+    except Exception:
+        logging.exception("Error closing the Mongo client")
+    try:
+        RedisClient.close()
+    except Exception:
+        logging.exception("Error closing the Redis client")
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="TurfBook API", lifespan=lifespan)
+
     configure_middleware(app)
-    JWTManager(app)
+    app.include_router(create_api_router(), prefix=BASE_PATH)
+
+    # Errors keep the {status, error} shape the frontend reads, with no tracebacks.
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(request, exc: RequestValidationError):
+        first = (exc.errors() or [{}])[0]
+        field = '.'.join(str(part) for part in first.get('loc', ()) if part not in ('body', 'query', 'path'))
+        message = first.get('msg', 'Invalid request')
+        return JSONResponse(
+            {'status': 400, 'error': f"{field}: {message}" if field else message}, status_code=400
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def http_error_handler(request, exc: StarletteHTTPException):
+        return JSONResponse(
+            {'status': exc.status_code, 'error': exc.detail}, status_code=exc.status_code, headers=exc.headers
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_error_handler(request, exc: Exception):
+        logging.exception(f"Unhandled error on {request.method} {request.url.path}")
+        return JSONResponse({'status': 500, 'error': 'Internal server error'}, status_code=500)
+
+    @app.get('/health-check')
+    def health_check():
+        return {"status": 200, "data": "Success"}
 
     return app
 
-# Create Flask WSGI app and register resources
-flask_app = create_app()
-BASE_PATH = '/api/'
 
-api = Api(flask_app, BASE_PATH)
-# Let routers.create_routes register all resources via api.add_resource
-create_routes(api)
-
-app = flask_app
-
-# Health check
-@flask_app.route('/health-check', methods=['GET'])
-def health_check():
-    return {"status": 200, "data": "Success"}
-
+# ASGI entrypoint: `uvicorn app:app`
+app = create_app()
