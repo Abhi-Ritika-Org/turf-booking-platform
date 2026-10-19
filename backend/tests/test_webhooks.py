@@ -70,7 +70,9 @@ def test_missing_signature_header_is_rejected(client, pending_booking):
 
 
 def test_missing_webhook_secret_is_500(client, pending_booking, monkeypatch):
-    monkeypatch.delenv('RAZORPAY_WEBHOOK_SECRET')
+    # The secret is imported into apis.webhooks at import time, so patch the bound
+    # name rather than os.environ -- delenv cannot reach an already-bound constant.
+    monkeypatch.setattr('apis.webhooks.RAZORPAY_WEBHOOK_SECRET', None)
     response = post_event(client, captured_event())
     assert response.status_code == 500
 
