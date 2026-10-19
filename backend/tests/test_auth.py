@@ -179,3 +179,53 @@ class TestLogoutWithoutCookie:
         response = client.post('/api/auth/user-logout', headers=auth_headers)
         assert response.status_code == 200, body(response)
         assert redis_client.get(f'login_session:{user_id}') is None
+
+
+class TestUnhandledErrors:
+    def test_500_is_json_and_readable_by_the_browser(self, app):
+        """A crash must come back as {status, error} *with* CORS headers.
+
+        Without them the browser blocks the body and the frontend sees a CORS
+        failure instead of the real error.
+        """
+        from starlette.testclient import TestClient
+
+        from config import get_db
+        from helpers.jwt_service import create_access_token
+
+        def database_is_down():
+            raise RuntimeError('connection refused')
+
+        app.dependency_overrides[get_db] = database_is_down
+        token = create_access_token('some_user')
+
+        with TestClient(app, raise_server_exceptions=False) as raw_client:
+            response = raw_client.post(
+                '/api/turfs/turf-list',
+                json={},
+                headers={'Authorization': f'Bearer {token}', 'Origin': 'http://localhost:8080'},
+            )
+
+        assert response.status_code == 500
+        assert response.json() == {'status': 500, 'error': 'Internal server error'}
+        assert response.headers['access-control-allow-origin'] == 'http://localhost:8080'
+
+    def test_500_leaks_no_traceback(self, app):
+        from starlette.testclient import TestClient
+
+        from config import get_db
+        from helpers.jwt_service import create_access_token
+
+        def database_is_down():
+            raise RuntimeError('mongodb://secret-host:27017 connection refused')
+
+        app.dependency_overrides[get_db] = database_is_down
+        token = create_access_token('some_user')
+
+        with TestClient(app, raise_server_exceptions=False) as raw_client:
+            response = raw_client.post(
+                '/api/turfs/turf-list', json={}, headers={'Authorization': f'Bearer {token}'}
+            )
+
+        assert 'secret-host' not in response.text
+        assert 'Traceback' not in response.text

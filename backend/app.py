@@ -64,9 +64,12 @@ def create_app() -> FastAPI:
             {'status': exc.status_code, 'error': exc.detail}, status_code=exc.status_code, headers=exc.headers
         )
 
+    # Backstop only. Unhandled errors are normally caught by catch_unhandled_errors
+    # in configure_middleware, which sits inside CORS so the browser can read the
+    # response. This one runs outside CORS, for anything that escapes that layer.
     @app.exception_handler(Exception)
     async def unhandled_error_handler(request, exc: Exception):
-        logging.exception(f"Unhandled error on {request.method} {request.url.path}")
+        logging.exception(f"Error escaped the middleware on {request.method} {request.url.path}")
         return JSONResponse({'status': 500, 'error': 'Internal server error'}, status_code=500)
 
     @app.get('/health-check')

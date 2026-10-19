@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from helpers.jwt_service import ACCESS_TOKEN_TYPE, TokenError, decode_token
 
@@ -25,6 +26,20 @@ INVALID_TOKEN_MESSAGE = 'Invalid or expired access token'
 
 
 def configure_middleware(app):
+    # Order matters: add_middleware wraps each new layer *around* the previous one,
+    # so the last one added is the outermost. The error catcher is registered first
+    # so it sits inside CORS -- its 500 then passes back out through CORS and the
+    # browser can actually read it. Caught above CORS (as an exception handler) the
+    # response carries no Access-Control-Allow-Origin, so the browser reports a CORS
+    # failure and the real error never reaches the user.
+    @app.middleware('http')
+    async def catch_unhandled_errors(request: Request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logging.exception(f"Unhandled error on {request.method} {request.url.path}")
+            return JSONResponse({'status': 500, 'error': 'Internal server error'}, status_code=500)
+
     logging.debug(f"Configuring CORS with origins: {FRONTEND_ORIGINS}")
     app.add_middleware(
         CORSMiddleware,
