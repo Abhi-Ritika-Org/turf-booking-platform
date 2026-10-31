@@ -12,7 +12,7 @@ You need a TurfBook account to browse turfs and make bookings. Sign up with your
 6. Your booking is confirmed once the payment is verified.
 
 ## Time slots
-Each day is divided into 30-minute slots, starting at 00:00 (midnight) and ending at 24:00. The shortest booking is one slot (30 minutes). To play longer, select several slots in a row, for example 18:00 to 19:30 is three slots.
+Bookings are made in 30-minute slots. The shortest booking is one slot (30 minutes). To play longer, select several slots in a row, for example 18:00 to 19:30 is three slots.
 
 The slots you select must be continuous. You cannot book 18:00 to 18:30 and 19:00 to 19:30 in one booking; make two separate bookings instead.
 
