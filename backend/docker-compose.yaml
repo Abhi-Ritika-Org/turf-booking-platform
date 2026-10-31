@@ -11,7 +11,12 @@ services:
       - turf-redis
     volumes:
       - .:/app
-    command: gunicorn --reload --reload-engine=poll --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 --access-logfile - --error-logfile - --log-level debug app:flask_app
+    environment:
+      # The bind mount needs polling for uvicorn's reloader to see host edits.
+      - WATCHFILES_FORCE_POLLING=true
+    # Dev: single process with reload. Prod uses the image CMD (uvicorn --workers 2),
+    # or gunicorn app:app -k uvicorn_worker.UvicornWorker -w 2 --timeout 60 -b 0.0.0.0:8000
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
   turf-mongo:
     hostname: turf-mongo
