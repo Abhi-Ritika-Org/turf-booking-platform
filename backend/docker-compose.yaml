@@ -9,8 +9,11 @@ services:
     depends_on:
       - turf-mongo
       - turf-redis
+      - turf-chroma
     volumes:
       - .:/app
+      # Cache for Chroma's default embedding model (downloaded on first use)
+      - chroma_model_cache:/root/.cache/chroma
     command: gunicorn --reload --reload-engine=poll --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 --access-logfile - --error-logfile - --log-level debug app:flask_app
 
   turf-mongo:
@@ -34,6 +37,19 @@ services:
     - "6379:6379"
     # no ports
 
+  # Vector DB for the RAG knowledge base. Derived data: rebuild with scripts/build_kb.py.
+  # Keep the image tag in sync with the chromadb version in requirements.txt.
+  turf-chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: turf-chroma
+    restart: always
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+    ports:
+      - "8001:8000"   # host 8001 -> container 8000 (host 8000 is the backend)
+    volumes:
+      - chroma_data:/data
+
   jenkins:
     image: jenkins/jenkins:lts
     container_name: turf-jenkins
@@ -48,4 +64,6 @@ services:
 
 volumes:
   mongo_data:
+  chroma_data:
+  chroma_model_cache:
   jenkins_home:

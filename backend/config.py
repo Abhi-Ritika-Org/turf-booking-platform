@@ -24,6 +24,9 @@ AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
 S3_TURF_ASSETS_BUCKET = os.getenv('S3_TURF_ASSETS_BUCKET')
 S3_BASE_URL = os.getenv('S3_BASE_URL')
+CHROMA_HOST = os.getenv('CHROMA_HOST', 'turf-chroma')
+CHROMA_PORT = int(os.getenv('CHROMA_PORT', '8000'))
+CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'turfbook_kb')
 
 # Sync pymongo client (single client used for simplicity)
 MongoClient = pymongo.MongoClient(MONGO_URI)
@@ -59,4 +62,8 @@ APP_CONFIG = {
     'AWS_REGION': AWS_REGION,
     'S3_TURF_ASSETS_BUCKET': S3_TURF_ASSETS_BUCKET,
     'S3_BASE_URL': S3_BASE_URL,
+    # Chroma client is created lazily via helpers.chroma_client (it connects on construction)
+    'CHROMA_HOST': CHROMA_HOST,
+    'CHROMA_PORT': CHROMA_PORT,
+    'CHROMA_COLLECTION': CHROMA_COLLECTION,
 }

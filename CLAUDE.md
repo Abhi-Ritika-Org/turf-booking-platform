@@ -7,13 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 TurfBook is a turf (sports ground) booking platform. It is split into two independently-run apps in one repo:
 
 - **Frontend** (repo root, `src/`): Vite + React 18 + TypeScript, shadcn-ui (Radix + Tailwind), Redux Toolkit, axios. Originally scaffolded with Lovable (`lovable-tagger` plugin in dev mode).
-- **Backend** (`backend/`): Flask + Flask-RESTful + flask-jwt-extended, MongoDB (pymongo), Redis, S3 (boto3), Razorpay for payments.
+- **Backend** (`backend/`): Flask + Flask-RESTful + flask-jwt-extended, MongoDB (pymongo), Redis, S3 (boto3), Razorpay for payments, Chroma (vector DB for the planned RAG chatbot).
 
 Main integration branch is `dev`.
 
 **Target user journey:** sign up / log in → browse turfs → open a turf → pick a date and see its 30-minute slot availability → select slots and book → pay via Razorpay (backend creates order, verifies payment) → booking confirmed → view booking history.
 
-**Out of scope unless explicitly added:** live location tracking, chat, tournaments, team formation, social features. Turf-owner/admin management, cancellations/refunds are planned extensions, not built.
+**Out of scope unless explicitly added:** live location tracking, user-to-user chat, tournaments, team formation, social features. Turf-owner/admin management, cancellations/refunds are planned extensions, not built.
 
 Background handover doc (product goals, roadmap, security checklist): `~/Downloads/TURF_PROJECT_DOCUMENTATION.md`. Its implementation details predate the current code (it describes a FastAPI `bookings.py`, `/api/auth/login`, `/api/me`, Uvicorn) — trust the code over it.
 
@@ -41,11 +41,11 @@ Tests must match `src/**/*.{test,spec}.{ts,tsx}`.
 ### Backend (run from `backend/`)
 
 ```sh
-docker compose up --build    # backend (gunicorn w/ reload, port 8000) + mongo:6 + redis:7 (+ jenkins on 8080)
+docker compose up --build    # backend (gunicorn w/ reload, port 8000) + mongo:6 + redis:7 + chroma (host port 8001) (+ jenkins on 8080)
 python scripts/insert_turfs.py   # seed a turf document into Mongo (edit values in the script)
 ```
 
-Inside Compose, services reach Mongo/Redis by service name (`turf-mongo`, `turf-redis`); from the host (e.g. MongoDB Compass) use `localhost:27017`. The database is `turfbook` with collections `users`, `turfs`, `bookings`.
+Inside Compose, services reach Mongo/Redis/Chroma by service name (`turf-mongo`, `turf-redis`, `turf-chroma:8000`); from the host (e.g. MongoDB Compass) use `localhost:27017`. The database is `turfbook` with collections `users`, `turfs`, `bookings`.
 
 The compose file mounts `backend/` into the container, so code changes hot-reload. Note the Jenkins service also binds port 8080, which collides with the Vite dev server.
 
@@ -54,7 +54,7 @@ Backend modules use flat imports (`from apis.turfs import ...`, `from helpers...
 ## Environment
 
 - Frontend: `.env` at repo root (see `.env.example`): `VITE_API_BASE`, `VITE_RAZORPAY_KEY_ID`, `VITE_APP_NAME`. `src/env.ts` (imported first in `main.tsx`) maps these onto `process.env.API_BASE` / `RAZORPAY_KEY_ID` / `APP_NAME`; frontend code reads `process.env.*`, not `import.meta.env` directly.
-- Backend: `backend/.env` (see `backend/.env.example`): Mongo, JWT secrets/expiry, Redis, AWS/S3, Razorpay keys (`RAZORPAY_API_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`), `FRONTEND_ORIGINS` for CORS. `docker compose restart` does not reread `.env`; use `docker compose up -d --force-recreate turf-backend`.
+- Backend: `backend/.env` (see `backend/.env.example`): Mongo, JWT secrets/expiry, Redis, AWS/S3, Razorpay keys (`RAZORPAY_API_KEY`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`), `FRONTEND_ORIGINS` for CORS, Chroma (`CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_COLLECTION`). `docker compose restart` does not reread `.env`; use `docker compose up -d --force-recreate turf-backend`.
 
 ## Architecture
 
@@ -82,6 +82,16 @@ MongoDB collections: `users`, `turfs`, `bookings`, `payment_events` (webhook aud
 Turf details (`GET /api/turfs/turf-details/<turf_id>?date=DD-MM-YYYY`) splits the day into 30-minute slots and marks those overlapping `confirmed` bookings unavailable. Booking creation (`POST /api/bookings/create-booking`, body `turf_id`, `booking_date` `DD-MM-YYYY`, `booking_start_time`/`booking_end_time` `HH:MM`) treats an end time of `00:00` as the next day (the last slot), returns 404 for an unknown turf, 400 if `price_per_hour` is missing/non-positive or end ≤ start, 409 if it overlaps a `confirmed`/`payment_pending` booking, prices it in whole rupees as `round(price_per_hour × hours)` plus a platform fee `max(MINIMUM_PLATFORM_FEE ₹9, round(subtotal × PLATFORM_FEE_RATE 3%))` using half-up rounding (`round_half_up`) to match `calculateBookingTotals` in `src/lib/turfBooking.ts` — keep the two in sync, creates a Razorpay order (failure → 502 via `PaymentProviderError`), inserts the booking as `payment_pending`, and returns `order_id` + `booking_id`. The frontend (`pages/TurfDetails.tsx`) checks that `window.Razorpay` and the key are available *before* calling create-booking (so a blocked checkout never leaves an unpaid booking), refreshes slots on a 409, then opens Razorpay checkout; its success handler posts `booking_id`, `razorpay_payment_id`, `razorpay_order_id`, `razorpay_signature` to `POST /api/bookings/verify-payment`, which checks the booking belongs to the caller and matches the order, verifies the signature with `RAZORPAY_KEY_SECRET`, and confirms via a conditional `payment_pending` → `confirmed` update (idempotent; 409 if the booking is in another state). Razorpay clients come from `get_razorpay_client()` and confirmation goes through `mark_booking_confirmed()` (both in `apis/bookings.py`), shared with the webhook. `GET /api/bookings/booking-details/<booking_id>` returns the caller's booking (`status`, `booking_date`, `booking_start_time`/`booking_end_time`, `amount`, …) for status polling; other users' bookings return 404. If verify-payment fails, `TurfDetails.tsx` (`waitForBookingConfirmation`) polls it every 3 s for up to 20 attempts, stops on `confirmed` or any non-pending status, and otherwise tells the user the booking will update shortly. On confirmation the page clears the selection and refetches slots. Dates/times are parsed as naive local times and stamped UTC.
 
 **Razorpay webhook** (`POST /api/webhook/razorpay`, in `PUBLIC_PATHS`, no JWT): verifies `X-Razorpay-Signature` (HMAC-SHA256 of the raw body with `RAZORPAY_WEBHOOK_SECRET`), dedupes by `X-Razorpay-Event-Id` in the `payment_events` collection, and for `payment.captured`/`order.paid` checks the paid amount (paise) equals `booking.amount × 100` before confirming. `payment.failed` is recorded only (booking stays pending). Every handled event is stored with an `outcome` (`confirmed`, `already_confirmed`, `amount_mismatch`, `booking_not_found`, `paid_in_status_<status>`, …); `paid_in_status_expired` means money was taken for an expired booking and needs a refund/reconciliation. Returns 500 on processing errors so Razorpay retries. Local testing needs a tunnel (`ngrok http 8000`) registered in the Razorpay test dashboard.
+
+### RAG chatbot (in progress)
+
+Learning-oriented feature, built in stages: basic LLM chat → RAG → user agent with tools → admin agent. So far only the plumbing exists:
+
+- Vector DB is **Chroma** (`turf-chroma` service, image tag pinned to match `chromadb` in `requirements.txt`; data in the `chroma_data` volume). Collection `turfbook_kb` (cosine).
+- Get it via `helpers/chroma_client.py` (`get_chroma_client()`, `get_kb_collection()`), not `config.py`: `chromadb.HttpClient` connects on construction, so it is created lazily and the API still starts when Chroma is down.
+- Embeddings: Chroma's default embedding function (local `all-MiniLM-L6-v2`, ~80 MB downloaded on first use, cached in the `chroma_model_cache` volume). Changing the model means re-ingesting everything.
+- Chroma is derived data only. Sources of truth: hand-written markdown in `backend/knowledge/` (FAQ, rules, policy) and the `turfs` collection. Rebuild via an ingest script (`scripts/build_kb.py`, not written yet) using stable chunk ids so reruns upsert.
+- Not built yet: ingest script, `/api/chat` endpoint, LLM provider choice, agent tools. Agent tools must take the user from `g.current_user_id`, and an agent may create a `payment_pending` booking but never confirm one.
 
 ### Domain rules
 
