@@ -25,16 +25,22 @@ The turf's hourly price for the time you book, plus a platform fee of 3% (minimu
 Payment is through Razorpay, which typically supports UPI, debit and credit cards, net banking and wallets. The exact options are shown in the Razorpay checkout.
 
 ## My payment succeeded but the booking still shows pending. What should I do?
-Wait a few minutes and refresh the turf page. TurfBook confirms bookings only after verifying the payment with Razorpay, and sometimes this takes a little longer. It is usually confirmed automatically.
+Wait a few minutes and refresh the turf page. TurfBook confirms bookings only after verifying the payment with Razorpay, and sometimes this takes a little longer. It is usually confirmed automatically. If it is still pending after that, contact TurfBook support at SUPPORT_EMAIL_PLACEHOLDER with your booking details and the Razorpay payment ID.
+
+## How do I contact TurfBook support?
+Email SUPPORT_EMAIL_PLACEHOLDER. Support helps with payment and booking-confirmation problems. For cancellations and refunds, contact the turf owner.
 
 ## Can I cancel my booking?
-Cancellation is not available in the app yet. A cancellation and refund policy has not been decided. Please contact the turf directly for now.
+Yes, by contacting the turf owner directly. Cancelling is not done in the app. The owner's name and phone number are available for each turf.
 
 ## Can I get a refund?
-Refunds are not supported in the app yet. The refund policy has not been decided.
+Refunds for cancelled bookings are at the turf owner's discretion. Contact the turf owner to cancel and ask about a refund; the owner handles it with you directly.
 
 ## Can I change the date or time of my booking?
-Not yet. Changing a booking is not supported.
+Not in the app. Contact the turf owner to ask about changing your booking.
+
+## How do I contact a turf owner?
+Each turf has an owner contact with a name and phone number. Ask for the turf by name to get its owner's contact details.
 
 ## Where can I see my bookings?
 A booking history page is not available yet. It is planned.
@@ -42,8 +48,8 @@ A booking history page is not available yet. It is planned.
 ## Is it safe to pay on TurfBook?
 Yes. Payments go through Razorpay's secure checkout. TurfBook does not see or store your card, UPI or bank details.
 
-## Are the turfs open 24 hours?
-The booking page shows slots for the full day for every turf, but actual opening hours may differ. Check with the turf before booking very early or very late slots.
+## What time is a turf open? Is a slot free?
+It depends on the turf and the date. Open the turf's page and pick a date: the slots shown as available are the times you can book.
 
 ## What sports can I play?
 Each turf lists the sports it supports, such as football, cricket or pickleball, on its details page.

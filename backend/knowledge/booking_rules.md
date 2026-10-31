@@ -19,6 +19,8 @@ The slots you select must be continuous. You cannot book 18:00 to 18:30 and 19:0
 A slot that ends at midnight is shown with an end time of 00:00. It is the last slot of the day you picked, not the next day.
 
 ## Slot availability
+The time slots you can book are the ones shown as available on the turf's page for the date you pick. Which slots a turf offers can differ from turf to turf and day to day, so always check the turf's page for your date.
+
 Slots already taken by a confirmed booking are shown as unavailable and cannot be selected.
 
 Availability is checked again when you click book. If someone else booked the same time just before you, you will see a message that the slot is no longer available, and the slot list refreshes so you can pick another time.
@@ -30,11 +32,13 @@ A booking is confirmed only after TurfBook has verified your payment with Razorp
 
 If verification takes a little longer, the page keeps checking the booking status for about a minute and tells you if it is still being processed. A confirmed booking may take a few moments to appear.
 
+## Cancelling or changing a booking
+Cancelling or changing a booking cannot be done in the app. To cancel or change a booking, contact the turf owner directly. The owner's name and phone number are available for each turf. Whether you get a refund, and how much, is decided by the turf owner, and the owner handles the refund with you directly.
+
 ## Booking statuses
 - Pending payment: the booking was created and is waiting for payment.
 - Confirmed: payment was verified and the slot is yours.
 
 ## What is not available yet
 - Booking history: there is no page yet to see a list of your past and upcoming bookings.
-- Cancelling or changing a booking: not supported yet. See the FAQ.
-- Opening hours per turf: all turfs currently show slots for the full day. Check with the turf directly if you plan to book very late or very early.
+- Cancelling or changing a booking in the app: contact the turf owner instead (see above).

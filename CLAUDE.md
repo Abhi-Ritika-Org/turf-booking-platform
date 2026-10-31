@@ -13,7 +13,7 @@ Main integration branch is `dev`.
 
 **Target user journey:** sign up / log in → browse turfs → open a turf → pick a date and see its 30-minute slot availability → select slots and book → pay via Razorpay (backend creates order, verifies payment) → booking confirmed → view booking history.
 
-**Out of scope unless explicitly added:** live location tracking, user-to-user chat, tournaments, team formation, social features. Turf-owner/admin management, cancellations/refunds are planned extensions, not built.
+**Out of scope unless explicitly added:** live location tracking, user-to-user chat, tournaments, team formation, social features. Turf-owner/admin management and in-app cancellation are planned extensions, not built. Cancellation/refund policy (decided): users cancel by contacting the turf owner (`owner_contact` on the turf doc), and refunds are at the owner's discretion, handled by the owner directly.
 
 Background handover doc (product goals, roadmap, security checklist): `~/Downloads/TURF_PROJECT_DOCUMENTATION.md`. Its implementation details do not match the current code (it describes `/api/auth/login`, `/api/me`) — trust the code over it.
 
@@ -100,7 +100,7 @@ Learning-oriented feature, built in stages: basic LLM chat → RAG → user agen
 - Vector DB is **Chroma** (`turf-chroma` service, image tag pinned to match `chromadb` in `requirements.txt`; data in the `chroma_data` volume). Collection `turfbook_kb` (cosine).
 - Get it via `helpers/chroma_client.py` (`get_chroma_client()`, `get_kb_collection()`, usable as FastAPI dependencies), not `config.py`: `chromadb.HttpClient` connects on construction, so it is created lazily and the API still starts when Chroma is down.
 - Embeddings: Chroma's default embedding function (local `all-MiniLM-L6-v2`, ~80 MB downloaded on first use, cached in the `chroma_model_cache` volume). Changing the model means re-ingesting everything.
-- Chroma is derived data only. Sources of truth: hand-written markdown in `backend/knowledge/` (FAQ, rules, policy) and the `turfs` collection. Rebuild via an ingest script (`scripts/build_kb.py`, not written yet) using stable chunk ids so reruns upsert.
+- Chroma is derived data only. Sources of truth: hand-written markdown in `backend/knowledge/` (`booking_rules.md`, `payments.md`, `faq.md`) and the `turfs` collection. Turf chunks should include `owner_contact` (name + phone): sharing it in chat is approved, since cancellations go through the owner. Availability and opening-hours questions must be answered from live slot data (turf-details logic), never from the knowledge base. Replace `SUPPORT_EMAIL_PLACEHOLDER` in the knowledge files once a support address exists. Rebuild via an ingest script (`scripts/build_kb.py`, not written yet) using stable chunk ids so reruns upsert.
 - Not built yet: ingest script, `/api/chat` endpoint, LLM provider choice, agent tools. Agent tools must take the user from the `current_user_id` dependency, and an agent may create a `payment_pending` booking but never confirm one.
 
 ### Domain rules
@@ -113,7 +113,7 @@ Learning-oriented feature, built in stages: basic LLM chat → RAG → user agen
 
 ### Open product decisions
 
-Still undecided (ask rather than assume): venue timezone/storage convention, whether bookings may cross midnight, fixed slots vs. arbitrary-duration bookings, booking status lifecycle and payment timeout, whether listing/details should be public, whether mobile must be unique and email verification is required, refresh-token rotation and multi-device login policy, cancellation/refund policy, turf-owner/admin workflows, and production hosting/secret management.
+Still undecided (ask rather than assume): venue timezone/storage convention, whether bookings may cross midnight, fixed slots vs. arbitrary-duration bookings, booking status lifecycle and payment timeout, whether listing/details should be public, whether mobile must be unique and email verification is required, refresh-token rotation and multi-device login policy, turf-owner/admin workflows, the support email address (`SUPPORT_EMAIL_PLACEHOLDER` in `backend/knowledge/`), and production hosting/secret management.
 
 ### Testing priorities
 

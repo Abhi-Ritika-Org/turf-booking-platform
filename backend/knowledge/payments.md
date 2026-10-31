@@ -29,7 +29,9 @@ If your payment fails or you close the Razorpay window without paying, the booki
 At the moment a pending booking is not released automatically, so that time may stay blocked for new bookings.
 
 ## Money was deducted but the booking is not confirmed
-Sometimes the bank confirms a payment a little late. TurfBook also receives payment updates directly from Razorpay, so the booking is usually confirmed automatically within a short time. Refresh the turf page after a few minutes to check.
+Sometimes the bank confirms a payment a little late. TurfBook also receives payment updates directly from Razorpay, so the booking is usually confirmed automatically within a short time. Refresh the turf page after a few minutes to check. If it is still not confirmed, contact TurfBook support at SUPPORT_EMAIL_PLACEHOLDER with your booking details and the Razorpay payment ID.
 
 ## Refunds
-Refunds are not supported in the app yet. See the FAQ for cancellations.
+Refunds for cancelled bookings are decided and handled by the turf owner, not in the app. To cancel and ask for a refund, contact the turf owner directly. The owner's name and phone number are available for each turf.
+
+If money was deducted but your booking was never confirmed, contact TurfBook support at SUPPORT_EMAIL_PLACEHOLDER with your booking details and the Razorpay payment ID.

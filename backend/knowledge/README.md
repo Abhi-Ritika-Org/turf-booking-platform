@@ -13,3 +13,5 @@ Guidelines:
 - Only state what the platform actually does today. For undecided policies
   (cancellation/refunds, etc.) say so explicitly so the bot does not invent one.
 - No secrets, internal URLs or personal data: anything here can end up in a chat answer.
+- Do not state slot times or opening hours here; the bot answers those from live slot data.
+- `SUPPORT_EMAIL_PLACEHOLDER` must be replaced with the real support address before the bot goes live.
