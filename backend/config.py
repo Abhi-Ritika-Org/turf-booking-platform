@@ -1,7 +1,6 @@
 from dotenv import load_dotenv
 import os
 import pymongo
-from datetime import timedelta
 from passlib.context import CryptContext
 import redis
 
@@ -24,6 +23,7 @@ AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
 AWS_REGION = os.getenv('AWS_REGION')
 S3_TURF_ASSETS_BUCKET = os.getenv('S3_TURF_ASSETS_BUCKET')
 S3_BASE_URL = os.getenv('S3_BASE_URL')
+RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET')
 CHROMA_HOST = os.getenv('CHROMA_HOST', 'turf-chroma')
 CHROMA_PORT = int(os.getenv('CHROMA_PORT', '8000'))
 CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'turfbook_kb')
@@ -37,33 +37,17 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto
 # Redis client (single shared client)
 RedisClient = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB, decode_responses=True)
 
-APP_CONFIG = {
-    'MONGO_URI': MONGO_URI,
-    'MONGO_DB_NAME': MONGO_DB,
-    'MONGO_CLIENT': MongoClient,
-    'MONGO_DB': MongoDb,
-    'PWD_CONTEXT': pwd_context,
-    'JWT_SECRET_KEY': JWT_ACCESS_SECRET,
-    'JWT_REFRESH_SECRET_KEY': JWT_REFRESH_SECRET,
-    'JWT_ALGORITHM': JWT_ALGORITHM,
-    'ACCESS_TOKEN_EXPIRE_MINUTES': ACCESS_TOKEN_EXPIRE_MINUTES,
-    'REFRESH_TOKEN_EXPIRE_DAYS': REFRESH_TOKEN_EXPIRE_DAYS,
-    'JWT_ACCESS_TOKEN_EXPIRES': timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
-    'JWT_REFRESH_TOKEN_EXPIRES': timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
-    'JWT_TOKEN_LOCATION': ['headers', 'cookies'],
-    'JWT_COOKIE_CSRF_PROTECT': False,
-    'JWT_REFRESH_COOKIE_NAME': 'refresh_token',
-    'JWT_COOKIE_SECURE': JWT_COOKIE_SECURE,
-    'JWT_COOKIE_HTTPONLY': True,
-    'JWT_COOKIE_SAMESITE': JWT_COOKIE_SAMESITE,
-    'REDIS_CLIENT': RedisClient,
-    'AWS_ACCESS_KEY': AWS_ACCESS_KEY,
-    'AWS_SECRET_KEY': AWS_SECRET_KEY,
-    'AWS_REGION': AWS_REGION,
-    'S3_TURF_ASSETS_BUCKET': S3_TURF_ASSETS_BUCKET,
-    'S3_BASE_URL': S3_BASE_URL,
-    # Chroma client is created lazily via helpers.chroma_client (it connects on construction)
-    'CHROMA_HOST': CHROMA_HOST,
-    'CHROMA_PORT': CHROMA_PORT,
-    'CHROMA_COLLECTION': CHROMA_COLLECTION,
-}
+
+def get_db():
+    """FastAPI dependency: the shared Mongo database handle."""
+    return MongoDb
+
+
+def get_redis():
+    """FastAPI dependency: the shared Redis client."""
+    return RedisClient
+
+
+def get_pwd_context():
+    """FastAPI dependency: the shared passlib context."""
+    return pwd_context
