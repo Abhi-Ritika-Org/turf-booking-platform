@@ -6,7 +6,7 @@ Turf information is not written here; it comes from the `turfs` collection in Mo
 
 These files and Mongo are the source of truth. Chroma (`turf-chroma`, collection
 `turfbook_kb`) holds only derived chunks + embeddings and can be wiped and
-rebuilt by re-running the ingest script (`scripts/build_kb.py`, to be written).
+rebuilt by re-running the ingest script (`rag/build_kb.py`, to be written).
 
 Guidelines:
 - One topic per file, e.g. `faq_payments.md`, `booking_rules.md`.

@@ -42,7 +42,7 @@ services:
     - "6379:6379"
     # no ports
 
-  # Vector DB for the RAG knowledge base. Derived data: rebuild with scripts/build_kb.py.
+  # Vector DB for the RAG knowledge base. Derived data: rebuild with rag/build_kb.py.
   # Keep the image tag in sync with the chromadb version in requirements.txt.
   turf-chroma:
     image: chromadb/chroma:1.5.9

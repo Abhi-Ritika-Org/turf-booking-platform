@@ -100,7 +100,7 @@ Learning-oriented feature, built in stages: basic LLM chat → RAG → user agen
 - Vector DB is **Chroma** (`turf-chroma` service, image tag pinned to match `chromadb` in `requirements.txt`; data in the `chroma_data` volume). Collection `turfbook_kb` (cosine).
 - Get it via `helpers/chroma_client.py` (`get_chroma_client()`, `get_kb_collection()`, usable as FastAPI dependencies), not `config.py`: `chromadb.HttpClient` connects on construction, so it is created lazily and the API still starts when Chroma is down.
 - Embeddings: Chroma's default embedding function (local `all-MiniLM-L6-v2`, ~80 MB downloaded on first use, cached in the `chroma_model_cache` volume). Changing the model means re-ingesting everything.
-- Chroma is derived data only. Sources of truth: hand-written markdown in `backend/knowledge/` (`booking_rules.md`, `payments.md`, `faq.md`) and the `turfs` collection. Turf chunks should include `owner_contact` (name + phone): sharing it in chat is approved, since cancellations go through the owner. Availability and opening-hours questions must be answered from live slot data (turf-details logic), never from the knowledge base. Replace `SUPPORT_EMAIL_PLACEHOLDER` in the knowledge files once a support address exists. Rebuild via an ingest script (`scripts/build_kb.py`, not written yet) using stable chunk ids so reruns upsert.
+- Chroma is derived data only. Sources of truth: hand-written markdown in `backend/rag/knowledge/` (`booking_rules.md`, `payments.md`, `faq.md`) and the `turfs` collection. Turf chunks should include `owner_contact` (name + phone): sharing it in chat is approved, since cancellations go through the owner. Availability and opening-hours questions must be answered from live slot data (turf-details logic), never from the knowledge base. Replace `SUPPORT_EMAIL_PLACEHOLDER` in the knowledge files once a support address exists. Rebuild via an ingest script (`rag/build_kb.py`, not written yet; RAG code goes in `backend/rag/`) using stable chunk ids so reruns upsert.
 - Not built yet: ingest script, `/api/chat` endpoint, LLM provider choice, agent tools. Agent tools must take the user from the `current_user_id` dependency, and an agent may create a `payment_pending` booking but never confirm one.
 
 ### Domain rules
@@ -113,7 +113,7 @@ Learning-oriented feature, built in stages: basic LLM chat → RAG → user agen
 
 ### Open product decisions
 
-Still undecided (ask rather than assume): venue timezone/storage convention, whether bookings may cross midnight, fixed slots vs. arbitrary-duration bookings, booking status lifecycle and payment timeout, whether listing/details should be public, whether mobile must be unique and email verification is required, refresh-token rotation and multi-device login policy, turf-owner/admin workflows, the support email address (`SUPPORT_EMAIL_PLACEHOLDER` in `backend/knowledge/`), and production hosting/secret management.
+Still undecided (ask rather than assume): venue timezone/storage convention, whether bookings may cross midnight, fixed slots vs. arbitrary-duration bookings, booking status lifecycle and payment timeout, whether listing/details should be public, whether mobile must be unique and email verification is required, refresh-token rotation and multi-device login policy, turf-owner/admin workflows, the support email address (`SUPPORT_EMAIL_PLACEHOLDER` in `backend/rag/knowledge/`), and production hosting/secret management.
 
 ### Testing priorities
 
