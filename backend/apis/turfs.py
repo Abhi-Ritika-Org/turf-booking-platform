@@ -91,23 +91,28 @@ def get_available_slots(start_time, end_time, bookings):
     return slots
 
 
+def get_turf_availability(mongo_db, turf_id, date):
+    """(turf, slots) for a DD-MM-YYYY date, or (None, None) for an unknown turf.
+    Raises ValueError for a bad date. Shared by turf-details and the chatbot."""
+    start_time, end_time = get_date_range(date)
+    turf = mongo_db['turfs'].find_one({'id': turf_id}, {'_id': 0})
+    if not turf:
+        return None, None
+    bookings = get_bookings_for_turf(mongo_db, turf_id, start_time, end_time)
+    return turf, get_available_slots(start_time, end_time, bookings)
+
+
 def turf_details(turf_id: str, date: Optional[str] = None, mongo_db=Depends(get_db)):
     """Get details of a specific turf by ID, with that date's 30-minute slot availability"""
     try:
         if not date:
             return JSONResponse({"status": False, "message": "Date is required"}, status_code=400)
         try:
-            start_time, end_time = get_date_range(date)
+            turf, available_slots = get_turf_availability(mongo_db, turf_id, date)
         except ValueError:
             return JSONResponse({"status": False, "message": "Invalid date format, expected DD-MM-YYYY"}, status_code=400)
-
-        turf = mongo_db['turfs'].find_one({'id': turf_id}, {'_id': 0})
         if not turf:
             return JSONResponse({"status": False, "message": "Turf not found"}, status_code=404)
-
-        ### get bookings for the turf on the specified date
-        bookings = get_bookings_for_turf(mongo_db, turf_id, start_time, end_time)
-        available_slots = get_available_slots(start_time, end_time, bookings)
         return JSONResponse(
             jsonable_encoder({"status": True, "turf": turf, "available_slots": available_slots}), status_code=200
         )

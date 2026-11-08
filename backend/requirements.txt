@@ -12,3 +12,5 @@ pydantic
 shortuuid
 redis
 razorpay==1.4.2
+chromadb==1.5.9
+openai==3.42.0

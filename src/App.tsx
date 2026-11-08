@@ -12,6 +12,7 @@ import TurfDetails from "./pages/TurfDetails";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import ChatWidget from "@/components/ChatWidget";
 
 const queryClient = new QueryClient();
 
@@ -100,6 +101,7 @@ const App = () => (
       <BrowserRouter>
         <RouterWithCancel />
       </BrowserRouter>
+      <ChatWidget />
     </TooltipProvider>
   </QueryClientProvider>
 );
