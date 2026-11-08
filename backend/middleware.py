@@ -1,8 +1,12 @@
 import logging
 import os
+
 from dotenv import load_dotenv
-from flask import g, make_response, request
-from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from fastapi import HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from helpers.jwt_service import ACCESS_TOKEN_TYPE, TokenError, decode_token
 
 load_dotenv()
 
@@ -18,47 +22,58 @@ for host in (
     if host not in FRONTEND_ORIGINS:
         FRONTEND_ORIGINS.append(host)
 
-# Public endpoints that do not need access token validation
-PUBLIC_PATHS = {
-    '/health-check',
-    '/api/auth/user-login',
-    '/api/auth/refresh',
-    '/api/auth/user-signup',
-    '/api/webhook/razorpay',  # called by Razorpay; authenticated by signature, not JWT
-}
+INVALID_TOKEN_MESSAGE = 'Invalid or expired access token'
 
 
 def configure_middleware(app):
-    try:
-        from flask_cors import CORS as FlaskCORS
-
-        logging.debug(f"Configuring Flask CORS with origins: {FRONTEND_ORIGINS}")
-        FlaskCORS(
-            app,
-            resources={r"/*": {"origins": FRONTEND_ORIGINS}},
-            supports_credentials=True,
-            expose_headers=["Set-Cookie", "Authorization"],
-            allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
-            methods=["GET", "HEAD", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
-        )
-    except Exception:
-        logging.exception("Failed to configure CORS for Flask app")
-
-    @app.before_request
-    def validate_access_token():
-        if request.method == 'OPTIONS':
-            return None
-
-        path = request.path.rstrip('/') or '/'
-        if path in PUBLIC_PATHS:
-            return None
-
+    # Order matters: add_middleware wraps each new layer *around* the previous one,
+    # so the last one added is the outermost. The error catcher is registered first
+    # so it sits inside CORS -- its 500 then passes back out through CORS and the
+    # browser can actually read it. Caught above CORS (as an exception handler) the
+    # response carries no Access-Control-Allow-Origin, so the browser reports a CORS
+    # failure and the real error never reaches the user.
+    @app.middleware('http')
+    async def catch_unhandled_errors(request: Request, call_next):
         try:
-            verify_jwt_in_request(optional=False, locations=['headers'])
-            g.current_user_id = get_jwt_identity()
-            request.environ['current_user_id'] = g.current_user_id
+            return await call_next(request)
         except Exception:
-            logging.debug("Access token validation failed", exc_info=True)
-            return make_response({'status': 401, 'error': 'Invalid or expired access token'}, 401)
+            logging.exception(f"Unhandled error on {request.method} {request.url.path}")
+            return JSONResponse({'status': 500, 'error': 'Internal server error'}, status_code=500)
 
-        return None
+    logging.debug(f"Configuring CORS with origins: {FRONTEND_ORIGINS}")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=FRONTEND_ORIGINS,
+        allow_credentials=True,
+        expose_headers=["Set-Cookie", "Authorization"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+        allow_methods=["GET", "HEAD", "POST", "OPTIONS", "PUT", "PATCH", "DELETE"],
+    )
+
+
+def current_user_id(request: Request) -> str:
+    """Dependency for every non-public route: validates the bearer access token.
+
+    Replaces the Flask `before_request` hook and `PUBLIC_PATHS`; a route is
+    public simply by not depending on this.
+    """
+    authorization = request.headers.get('Authorization', '')
+    scheme, _, token = authorization.partition(' ')
+    if scheme.lower() != 'bearer' or not token.strip():
+        logging.debug("Access token missing or malformed Authorization header")
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN_MESSAGE)
+
+    try:
+        claims = decode_token(token.strip(), ACCESS_TOKEN_TYPE)
+    except TokenError:
+        logging.debug("Access token validation failed", exc_info=True)
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN_MESSAGE)
+
+    user_id = claims['sub']
+    request.state.current_user_id = user_id
+    return user_id
+
+
+async def raw_request_body(request: Request) -> bytes:
+    """Dependency for signature-verified webhooks: the exact bytes that were sent."""
+    return await request.body()

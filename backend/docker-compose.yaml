@@ -9,9 +9,17 @@ services:
     depends_on:
       - turf-mongo
       - turf-redis
+      - turf-chroma
     volumes:
       - .:/app
-    command: gunicorn --reload --reload-engine=poll --workers 2 --threads 4 --bind 0.0.0.0:8000 --timeout 60 --access-logfile - --error-logfile - --log-level debug app:flask_app
+      # Cache for Chroma's default embedding model (downloaded on first use)
+      - chroma_model_cache:/root/.cache/chroma
+    environment:
+      # The bind mount needs polling for uvicorn's reloader to see host edits.
+      - WATCHFILES_FORCE_POLLING=true
+    # Dev: single process with reload. Prod uses the image CMD (uvicorn --workers 2),
+    # or gunicorn app:app -k uvicorn_worker.UvicornWorker -w 2 --timeout 60 -b 0.0.0.0:8000
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload --log-level debug
 
   turf-mongo:
     hostname: turf-mongo
@@ -34,6 +42,19 @@ services:
     - "6379:6379"
     # no ports
 
+  # Vector DB for the RAG knowledge base. Derived data: rebuild with rag/build_kb.py.
+  # Keep the image tag in sync with the chromadb version in requirements.txt.
+  turf-chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: turf-chroma
+    restart: always
+    environment:
+      - ANONYMIZED_TELEMETRY=FALSE
+    ports:
+      - "8001:8000"   # host 8001 -> container 8000 (host 8000 is the backend)
+    volumes:
+      - chroma_data:/data
+
   jenkins:
     image: jenkins/jenkins:lts
     container_name: turf-jenkins
@@ -48,4 +69,6 @@ services:
 
 volumes:
   mongo_data:
+  chroma_data:
+  chroma_model_cache:
   jenkins_home:

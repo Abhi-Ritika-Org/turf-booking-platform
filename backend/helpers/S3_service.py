@@ -1,15 +1,16 @@
 import boto3
 import logging
-from flask import current_app as app
+
+from config import AWS_ACCESS_KEY, AWS_REGION, AWS_SECRET_KEY
 
 class S3Service:
     def __init__(self, bucket_name=None):
         self.bucket_name = bucket_name
         self.s3_client = boto3.client(
             's3',
-            aws_access_key_id=app.config.get('AWS_ACCESS_KEY'),
-            aws_secret_access_key=app.config.get('AWS_SECRET_KEY'),
-            region_name=app.config.get('AWS_REGION')
+            aws_access_key_id=AWS_ACCESS_KEY,
+            aws_secret_access_key=AWS_SECRET_KEY,
+            region_name=AWS_REGION
         )
 
     def get_object_url(self, key):
