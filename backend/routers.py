@@ -7,11 +7,12 @@ having it.
 """
 from fastapi import APIRouter, Depends
 
-from apis import auth, bookings, turfs, webhooks
+from apis import auth, bookings, chat, turfs, webhooks
 from middleware import current_user_id
 
 AUTH_PATH = "auth"
 BOOKINGS_PATH = "bookings"
+CHAT_PATH = "chat"
 TURFS_PATH = "turfs"
 WEBHOOK_PATH = "webhook"
 
@@ -50,6 +51,16 @@ def create_api_router() -> APIRouter:
         turfs_router,
         prefix=f"/{TURFS_PATH}",
         tags=["turfs"],
+        dependencies=[Depends(current_user_id)],
+    )
+
+    # Chatbot (requires a valid access token). Mounted at /api/chat itself.
+    chat_router = APIRouter()
+    chat_router.add_api_route("", chat.chat, methods=["POST"])
+    api_router.include_router(
+        chat_router,
+        prefix=f"/{CHAT_PATH}",
+        tags=["chat"],
         dependencies=[Depends(current_user_id)],
     )
 

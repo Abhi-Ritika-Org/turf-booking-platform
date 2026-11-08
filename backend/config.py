@@ -27,6 +27,10 @@ RAZORPAY_WEBHOOK_SECRET = os.getenv('RAZORPAY_WEBHOOK_SECRET')
 CHROMA_HOST = os.getenv('CHROMA_HOST', 'turf-chroma')
 CHROMA_PORT = int(os.getenv('CHROMA_PORT', '8000'))
 CHROMA_COLLECTION = os.getenv('CHROMA_COLLECTION', 'turfbook_kb')
+# LLM for the chatbot, via OpenRouter's OpenAI-compatible API
+OPEN_ROUTER_BASE_URL = os.getenv('OPEN_ROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+OPEN_ROUTER_API_KEY = os.getenv('OPEN_ROUTER_API_KEY')
+OPEN_ROUTER_MODEL = os.getenv('OPEN_ROUTER_MODEL')
 
 # Sync pymongo client (single client used for simplicity)
 MongoClient = pymongo.MongoClient(MONGO_URI)
