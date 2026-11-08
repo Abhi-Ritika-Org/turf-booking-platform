@@ -123,6 +123,62 @@ def calculate_amount(start_datetime, end_datetime, price_per_hour):
     return turf_amount, platform_fee
 
 
+def parse_booking_window(booking_date, start_time, end_time):
+    """DD-MM-YYYY + HH:MM strings -> (start, end) UTC datetimes. An end time of
+    00:00 is the end of the last slot, i.e. midnight of the next date.
+    Raises ValueError with a user-facing message."""
+    try:
+        start = datetime.strptime(f"{booking_date} {start_time}", "%d-%m-%Y %H:%M").replace(tzinfo=timezone.utc)
+        end = datetime.strptime(f"{booking_date} {end_time}", "%d-%m-%Y %H:%M").replace(tzinfo=timezone.utc)
+    except ValueError:
+        raise ValueError('Invalid date/time format!')
+    # The last slot of the day ends at "00:00", which belongs to the next date.
+    if end_time == "00:00":
+        end += timedelta(days=1)
+    if end <= start:
+        raise ValueError('End time must be after start time!')
+    return start, end
+
+
+def is_valid_price(price_per_hour):
+    return not isinstance(price_per_hour, bool) and isinstance(price_per_hour, (int, float)) and price_per_hour > 0
+
+
+BOOKING_FIELDS = {
+    '_id': 0, 'booking_id': 1, 'turf_id': 1, 'status': 1, 'start_time': 1, 'end_time': 1,
+    'amount': 1, 'razorpay_order_id': 1,
+}
+
+
+def format_booking(booking):
+    """Replace the stored datetimes with the date/time strings the API returns."""
+    start_time = booking.pop('start_time')
+    end_time = booking.pop('end_time')
+    booking['booking_date'] = start_time.strftime("%d-%m-%Y")
+    booking['booking_start_time'] = start_time.strftime("%H:%M")
+    booking['booking_end_time'] = end_time.strftime("%H:%M")
+    return booking
+
+
+def get_user_booking(mongo_db, user_id, booking_id):
+    """The booking if it belongs to user_id, else None. Shared by booking-details and the chatbot."""
+    booking = mongo_db['bookings'].find_one({'booking_id': booking_id, 'user_id': user_id}, BOOKING_FIELDS)
+    return format_booking(booking) if booking else None
+
+
+def list_user_bookings(mongo_db, user_id, limit, status=None, starting_from=None):
+    """user_id's bookings, latest slot first; or, with starting_from (a naive
+    local datetime, matching how slot times are stored), the next ones from then on."""
+    query = {'user_id': user_id}
+    if status:
+        query['status'] = status
+    if starting_from:
+        query['start_time'] = {'$gte': starting_from}
+    order = 1 if starting_from else -1
+    cursor = mongo_db['bookings'].find(query, BOOKING_FIELDS).sort('start_time', order).limit(limit)
+    return [format_booking(b) for b in cursor]
+
+
 def create_booking(
     payload: CreateBookingRequest,
     user_id: str = Depends(current_user_id),
@@ -141,29 +197,19 @@ def create_booking(
 
         turf_id = payload.turf_id
         try:
-            booking_start_datetime = datetime.strptime(
-                f"{payload.booking_date} {payload.booking_start_time}", "%d-%m-%Y %H:%M"
-            ).replace(tzinfo=timezone.utc)
-            booking_end_datetime = datetime.strptime(
-                f"{payload.booking_date} {payload.booking_end_time}", "%d-%m-%Y %H:%M"
-            ).replace(tzinfo=timezone.utc)
-        except ValueError:
-            return JSONResponse({'status': False, 'error': 'Invalid date/time format!'}, status_code=400)
-
-        # The last slot of the day ends at "00:00", which belongs to the next date.
-        if payload.booking_end_time == "00:00":
-            booking_end_datetime += timedelta(days=1)
+            booking_start_datetime, booking_end_datetime = parse_booking_window(
+                payload.booking_date, payload.booking_start_time, payload.booking_end_time
+            )
+        except ValueError as e:
+            return JSONResponse({'status': False, 'error': str(e)}, status_code=400)
 
         logging.info(f"Parsed booking start datetime: {booking_start_datetime}, end datetime: {booking_end_datetime}")
-
-        if booking_end_datetime <= booking_start_datetime:
-            return JSONResponse({'status': False, 'error': 'End time must be after start time!'}, status_code=400)
 
         turf = mongo_db['turfs'].find_one({'id': turf_id}, {'price_per_hour': 1, '_id': 0})
         if not turf:
             return JSONResponse({'status': False, 'error': 'Turf not found!'}, status_code=404)
         price_per_hour = turf.get('price_per_hour')
-        if isinstance(price_per_hour, bool) or not isinstance(price_per_hour, (int, float)) or price_per_hour <= 0:
+        if not is_valid_price(price_per_hour):
             logging.error(f"Turf {turf_id} has invalid price_per_hour: {price_per_hour}")
             return JSONResponse({'status': False, 'error': 'Turf pricing is not available!'}, status_code=400)
 
@@ -265,18 +311,9 @@ def booking_details(
 ):
     """Get the current status and details of the caller's booking"""
     try:
-        booking = mongo_db['bookings'].find_one(
-            {'booking_id': booking_id, 'user_id': user_id},
-            {'_id': 0, 'booking_id': 1, 'turf_id': 1, 'status': 1, 'start_time': 1, 'end_time': 1, 'amount': 1, 'razorpay_order_id': 1}
-        )
+        booking = get_user_booking(mongo_db, user_id, booking_id)
         if not booking:
             return JSONResponse({'status': False, 'error': 'Booking not found!'}, status_code=404)
-
-        start_time = booking.pop('start_time')
-        end_time = booking.pop('end_time')
-        booking['booking_date'] = start_time.strftime("%d-%m-%Y")
-        booking['booking_start_time'] = start_time.strftime("%H:%M")
-        booking['booking_end_time'] = end_time.strftime("%H:%M")
         return JSONResponse({'status': True, 'data': booking}, status_code=200)
     except Exception:
         logging.exception('Error in booking_details')
