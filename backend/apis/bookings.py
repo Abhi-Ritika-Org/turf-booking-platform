@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from razorpay.errors import SignatureVerificationError
 
 from config import get_db
+from helpers.venue_time import venue_now
 from middleware import current_user_id
 
 
@@ -202,6 +203,8 @@ def create_booking(
             )
         except ValueError as e:
             return JSONResponse({'status': False, 'error': str(e)}, status_code=400)
+        if booking_start_datetime.replace(tzinfo=None) < venue_now():
+            return JSONResponse({'status': False, 'error': 'That time is in the past.'}, status_code=400)
 
         logging.info(f"Parsed booking start datetime: {booking_start_datetime}, end datetime: {booking_end_datetime}")
 

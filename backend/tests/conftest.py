@@ -20,9 +20,23 @@ os.environ['RAZORPAY_WEBHOOK_SECRET'] = 'test_webhook_secret'
 os.environ['PLATFORM_FEE_RATE'] = '0.03'
 os.environ['MINIMUM_PLATFORM_FEE'] = '9'
 
+from datetime import datetime
+
 import fakeredis
 import mongomock
 import pytest
+
+# "Now" for the date-based API tests, which use 20-10-2026 as their working date.
+FIXED_NOW = datetime(2026, 10, 20, 0, 0)
+
+
+@pytest.fixture(autouse=True)
+def fixed_venue_now(monkeypatch):
+    import apis.bookings as bookings_module
+    import apis.turfs as turfs_module
+
+    monkeypatch.setattr(turfs_module, 'venue_now', lambda: FIXED_NOW)
+    monkeypatch.setattr(bookings_module, 'venue_now', lambda: FIXED_NOW)
 
 
 SIGNUP_PAYLOAD = {

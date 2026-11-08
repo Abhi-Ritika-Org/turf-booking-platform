@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from tests.conftest import TURF_ID, FakeRazorpayClient, body
@@ -60,6 +62,20 @@ class TestCreateBooking:
 
     def test_malformed_date_is_rejected(self, client, auth_headers, turf, fake_razorpay):
         assert create(client, auth_headers, booking_date='2026-10-20').status_code == 400
+
+    def test_past_date_is_rejected(self, client, auth_headers, turf, mongo_db, fake_razorpay):
+        response = create(client, auth_headers, booking_date='19-10-2026')
+        assert response.status_code == 400, body(response)
+        assert 'past' in body(response)['error']
+        assert mongo_db['bookings'].count_documents({}) == 0
+
+    def test_start_time_earlier_today_is_rejected(self, client, auth_headers, turf, mongo_db, fake_razorpay, monkeypatch):
+        import apis.bookings as bookings_module
+        monkeypatch.setattr(bookings_module, 'venue_now', lambda: datetime(2026, 10, 20, 18, 30))
+        response = create(client, auth_headers)  # 18:00-19:00 has already started
+        assert response.status_code == 400, body(response)
+        assert 'past' in body(response)['error']
+        assert mongo_db['bookings'].count_documents({}) == 0
 
     def test_end_not_after_start_is_rejected(self, client, auth_headers, turf, fake_razorpay):
         assert create(client, auth_headers, booking_end_time='18:00').status_code == 400

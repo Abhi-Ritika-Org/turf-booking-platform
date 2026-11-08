@@ -13,7 +13,6 @@ import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from apis.bookings import (
     calculate_amount,
@@ -24,13 +23,11 @@ from apis.bookings import (
 )
 from apis.turfs import get_turf_availability
 from helpers.chroma_client import get_kb_collection
+from helpers.venue_time import venue_now
 from rag.chat import retrieve
 
 MAX_BOOKINGS = 10
 MAX_TURFS = 20
-# Only used to know "now" for today's date, past slots and upcoming bookings;
-# the venue timezone is still an open product decision.
-VENUE_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 OTHER_USER_MESSAGE = (
     "Sorry, I can only show your own bookings and account details. "
@@ -41,11 +38,6 @@ OTHER_USER_MESSAGE = (
 # the LLM sends one anyway, the call is refused with the policy message rather
 # than the generic invalid-arguments error.
 IDENTITY_ARGS = {"user_id", "userid", "user", "email", "mobile", "phone", "username", "full_name", "name_of_user"}
-
-
-def venue_now():
-    """Current local time as a naive datetime (slot times are stored as naive local times)."""
-    return datetime.now(VENUE_TIMEZONE).replace(tzinfo=None)
 
 
 @dataclass
@@ -102,15 +94,13 @@ def merge_free_slots(slots):
 def get_availability(ctx, turf_id, date):
     try:
         turf, slots = get_turf_availability(ctx.db, turf_id, date)
-    except ValueError:
-        return {"error": "Date must be in DD-MM-YYYY format."}
+    except ValueError as e:
+        return {"error": str(e)}
     if not turf:
         return {"error": "Turf not found. Use list_turfs to find the turf_id."}
     now = venue_now()
-    if date == now.strftime("%d-%m-%Y"):
+    if datetime.strptime(date, "%d-%m-%Y").date() == now.date():
         slots = [s for s in slots if s["start_time"] >= now.strftime("%H:%M")]  # drop past slots
-    elif datetime.strptime(date, "%d-%m-%Y") < now:
-        return {"error": "That date is in the past."}
     return {
         "turf_name": (turf.get("name") or "").strip(),
         "date": date,
