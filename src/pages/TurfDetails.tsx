@@ -30,6 +30,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isAxiosError } from "axios";
+import { addDays, format } from "date-fns";
 import api from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,6 +43,7 @@ import {
   formatTime12h,
   groupSlotsByPeriod,
   getLocalDateString,
+  getVenueToday,
   sortSlotsByTime,
 } from "@/lib/turfBooking";
 import { cn } from "@/lib/utils";
@@ -59,6 +61,7 @@ type TurfLocationState = {
   available_slots?: BookingSlot[];
 };
 
+const BOOKING_WINDOW_DAYS = 7;
 const STATUS_POLL_INTERVAL_MS = 3000;
 const STATUS_POLL_MAX_ATTEMPTS = 20;
 
@@ -226,7 +229,7 @@ const SlotCard = ({
             !isAvailable && "bg-muted text-muted-foreground line-through",
           )}
         >
-          {isSelected ? "Selected" : isAvailable ? "Available" : "Booked"}
+          {isSelected ? "Selected" : isAvailable ? "Available" : slot.past ? "Passed" : "Booked"}
         </span>
         <span className="text-xs text-muted-foreground">30 min</span>
       </div>
@@ -358,7 +361,20 @@ const TurfDetails = () => {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [rangeStartIndex, setRangeStartIndex] = useState<number | null>(null);
   const [rangeEndIndex, setRangeEndIndex] = useState<number | null>(null);
-  const date = getLocalDateString(); // default to today's date, can be modified to allow user selection in the future
+  const [venueToday, setVenueToday] = useState(() => getLocalDateString(getVenueToday()));
+  const [date, setDate] = useState(venueToday);
+  const dateOptions = useMemo(() => {
+    const [todayDay, todayMonth, todayYear] = venueToday.split("-").map(Number);
+    const today = new Date(todayYear, todayMonth - 1, todayDay, 12);
+    return Array.from({ length: BOOKING_WINDOW_DAYS }, (_, offset) => {
+      const day = addDays(today, offset);
+      return {
+        value: getLocalDateString(day),
+        weekday: offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : format(day, "EEE"),
+        dayAndMonth: format(day, "d MMM"),
+      };
+    });
+  }, [venueToday]);
   const [isBooking, setIsBooking] = useState(false);
   const [bookingResponse, setBookingResponse] = useState<BookingApiResponse | null>(null);
   const [isConfirmingPayment, setIsConfirmingPayment] = useState(false);
@@ -372,6 +388,24 @@ const TurfDetails = () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  // A tab left open past midnight (venue time) must roll the window forward.
+  useEffect(() => {
+    const syncVenueToday = () => setVenueToday(getLocalDateString(getVenueToday()));
+    const timer = window.setInterval(syncVenueToday, 60_000);
+    document.addEventListener("visibilitychange", syncVenueToday);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", syncVenueToday);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (dateOptions.some((option) => option.value === date)) return;
+    setDate(venueToday);
+    setRangeStartIndex(null);
+    setRangeEndIndex(null);
+  }, [date, dateOptions, venueToday]);
 
   useEffect(() => {
     if (!params.turfId) return;
@@ -400,7 +434,18 @@ const TurfDetails = () => {
     );
   };
 
-  const sortedSlots = useMemo(() => sortSlotsByTime(pageResponse?.available_slots ?? []), [pageResponse?.available_slots]);
+  const slotsReady = turfDetailsState.status === "succeeded" && turfDetailsState.requestedDate === date;
+  const sortedSlots = useMemo(
+    () => sortSlotsByTime(slotsReady ? (pageResponse?.available_slots ?? []) : []),
+    [pageResponse?.available_slots, slotsReady],
+  );
+
+  const handleDateChange = (nextDate: string) => {
+    if (nextDate === date) return;
+    setDate(nextDate);
+    setRangeStartIndex(null);
+    setRangeEndIndex(null);
+  };
   const groupedSlots = useMemo(() => groupSlotsByPeriod(sortedSlots), [sortedSlots]);
 
   const selectedSlots = useMemo(() => {
@@ -911,6 +956,23 @@ const TurfDetails = () => {
                     </div>
                   </div>
 
+                  <div className="mt-5 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Booking date">
+                    {dateOptions.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={option.value === date ? "default" : "outline"}
+                        aria-pressed={option.value === date}
+                        disabled={isBookingBusy}
+                        onClick={() => handleDateChange(option.value)}
+                        className="h-auto min-w-[5.5rem] shrink-0 flex-col rounded-2xl px-3 py-2"
+                      >
+                        <span className="text-sm font-semibold">{option.weekday}</span>
+                        <span className="text-xs font-normal opacity-80">{option.dayAndMonth}</span>
+                      </Button>
+                    ))}
+                  </div>
+
                   <div className="mt-5 rounded-2xl border border-dashed border-primary/25 bg-primary/5 px-4 py-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -923,6 +985,19 @@ const TurfDetails = () => {
                       </div>
                     </div>
                   </div>
+
+                  {!slotsReady && (
+                    <p className="mt-6 text-sm text-muted-foreground" role="status">
+                      {turfDetailsState.status === "failed"
+                        ? (turfDetailsState.error ?? "Could not load slots for this date.")
+                        : "Loading slots..."}
+                      {turfDetailsState.status === "failed" && (
+                        <Button type="button" variant="link" className="h-auto px-2 py-0" onClick={handleRetry}>
+                          Retry
+                        </Button>
+                      )}
+                    </p>
+                  )}
 
                   <div className="mt-6 grid gap-4">
                     {groupedSlots.map((group) => (

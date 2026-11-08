@@ -1,5 +1,6 @@
 export interface BookingSlot {
   available: boolean;
+  past?: boolean;
   start_time: string;
   end_time: string;
 }
@@ -62,6 +63,18 @@ export const getLocalDateString = (date = new Date()) => {
   const day = String(date.getDate()).padStart(2, '0');
 
   return `${day}-${month}-${year}`;
+};
+
+// The backend decides "today" in the venue timezone, so build the booking dates from it, not the browser clock.
+export const getVenueToday = (now = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const part = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+  return new Date(part('year'), part('month') - 1, part('day'), 12);
 };
 
 export const calculateDurationHours = (selectedSlotCount: number, slotMinutes = 30) => {

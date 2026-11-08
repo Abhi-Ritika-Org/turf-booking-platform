@@ -119,3 +119,27 @@ class TestTurfDetails:
     def test_malformed_date_is_rejected(self, client, auth_headers, turf):
         response = client.get(self.url(date='2026-10-20'), headers=auth_headers)
         assert response.status_code == 400, body(response)
+
+    def test_past_date_is_rejected(self, client, auth_headers, turf):
+        response = client.get(self.url(date='19-10-2026'), headers=auth_headers)
+        assert response.status_code == 400, body(response)
+        assert 'past' in body(response)['message']
+
+    def test_unknown_turf_with_a_past_date_is_404(self, client, auth_headers):
+        assert client.get(self.url(date='19-10-2026', turf_id='turf_nope'), headers=auth_headers).status_code == 404
+
+    def test_slots_earlier_today_are_unavailable(self, client, auth_headers, turf, monkeypatch):
+        import apis.turfs as turfs_module
+        monkeypatch.setattr(turfs_module, 'venue_now', lambda: datetime(2026, 10, 20, 18, 15))
+        slots = {s['start_time']: s for s in body(client.get(self.url(), headers=auth_headers))['available_slots']}
+        assert slots['17:30']['available'] is False and slots['17:30']['past'] is True
+        assert slots['18:00']['available'] is False and slots['18:00']['past'] is True
+        assert slots['18:30']['available'] is True and slots['18:30']['past'] is False
+
+    def test_booked_slot_is_not_marked_past(self, client, auth_headers, turf, mongo_db):
+        mongo_db['bookings'].insert_one(booking_doc(at(18), at(19)))
+        slots = {s['start_time']: s for s in body(client.get(self.url(), headers=auth_headers))['available_slots']}
+        assert slots['18:00']['available'] is False and slots['18:00']['past'] is False
+
+    def test_a_far_future_date_is_still_served(self, client, auth_headers, turf):
+        assert client.get(self.url(date='20-12-2026'), headers=auth_headers).status_code == 200

@@ -7,6 +7,7 @@ type TurfDetailsState = {
   status: 'idle' | 'loading' | 'succeeded' | 'failed'
   error: string | null
   requestedDate: string | null
+  latestRequestId: string | null
 }
 
 const emptyState: TurfDetailsState = {
@@ -14,6 +15,7 @@ const emptyState: TurfDetailsState = {
   status: 'idle',
   error: null,
   requestedDate: null,
+  latestRequestId: null,
 }
 
 const normalizeSlots = (slots: BookingSlot[] = []) => {
@@ -23,6 +25,7 @@ const normalizeSlots = (slots: BookingSlot[] = []) => {
       start_time: slot.start_time,
       end_time: slot.end_time,
       available: Boolean(slot.available),
+      past: Boolean(slot.past),
     }))
 }
 
@@ -90,16 +93,19 @@ const turfDetailsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      .addCase(fetchTurfDetails.pending, (state) => {
+      .addCase(fetchTurfDetails.pending, (state, action) => {
         state.status = 'loading'
         state.error = null
+        state.latestRequestId = action.meta.requestId
       })
       .addCase(fetchTurfDetails.fulfilled, (state, action) => {
+        if (state.latestRequestId !== action.meta.requestId) return
         state.status = 'succeeded'
         state.data = action.payload.data
         state.requestedDate = action.payload.requestedDate
       })
       .addCase(fetchTurfDetails.rejected, (state, action) => {
+        if (state.latestRequestId !== action.meta.requestId) return
         state.status = 'failed'
         state.error = (action.payload as string) || action.error.message || 'Failed to load turf details'
       })

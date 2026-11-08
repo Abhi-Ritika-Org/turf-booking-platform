@@ -18,9 +18,11 @@ NOW = datetime(2026, 10, 31, 12, 0)  # naive local time, like stored slot times
 
 @pytest.fixture(autouse=True)
 def fixed_now(monkeypatch):
+    import apis.turfs as turfs
     import rag.agent as agent
     import rag.tools as tools
 
+    monkeypatch.setattr(turfs, 'venue_now', lambda: NOW)
     monkeypatch.setattr(tools, 'venue_now', lambda: NOW)
     monkeypatch.setattr(agent, 'venue_now', lambda: NOW)
 

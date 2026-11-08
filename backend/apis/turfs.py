@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from config import get_db
+from helpers.venue_time import venue_now
 
 
 # TODO: replace with the real bucket URL from config.S3_BASE_URL (roadmap item 1).
@@ -55,7 +56,7 @@ def get_date_range(date_str):
         end_time = start_time + timedelta(days=1)
         return start_time, end_time
     except ValueError as ve:
-        raise ValueError(f"Invalid date format: {ve}")
+        raise ValueError("Invalid date format, expected DD-MM-YYYY")
 
 
 def get_bookings_for_turf(mongo_db, turf_id, start_time, end_time):
@@ -98,8 +99,17 @@ def get_turf_availability(mongo_db, turf_id, date):
     turf = mongo_db['turfs'].find_one({'id': turf_id}, {'_id': 0})
     if not turf:
         return None, None
+    now = venue_now()
+    if start_time.date() < now.date():
+        raise ValueError("That date is in the past.")
     bookings = get_bookings_for_turf(mongo_db, turf_id, start_time, end_time)
-    return turf, get_available_slots(start_time, end_time, bookings)
+    slots = get_available_slots(start_time, end_time, bookings)
+    is_today = start_time.date() == now.date()
+    for slot in slots:
+        slot['past'] = is_today and slot['start_time'] < now.strftime("%H:%M")
+        if slot['past']:
+            slot['available'] = False
+    return turf, slots
 
 
 def turf_details(turf_id: str, date: Optional[str] = None, mongo_db=Depends(get_db)):
@@ -109,8 +119,8 @@ def turf_details(turf_id: str, date: Optional[str] = None, mongo_db=Depends(get_
             return JSONResponse({"status": False, "message": "Date is required"}, status_code=400)
         try:
             turf, available_slots = get_turf_availability(mongo_db, turf_id, date)
-        except ValueError:
-            return JSONResponse({"status": False, "message": "Invalid date format, expected DD-MM-YYYY"}, status_code=400)
+        except ValueError as ve:
+            return JSONResponse({"status": False, "message": str(ve)}, status_code=400)
         if not turf:
             return JSONResponse({"status": False, "message": "Turf not found"}, status_code=404)
         return JSONResponse(
